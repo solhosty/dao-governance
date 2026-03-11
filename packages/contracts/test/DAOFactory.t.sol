@@ -5,12 +5,24 @@ import {Test} from "forge-std/Test.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
+import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
+import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
+import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFactoryTest is Test {
     DAOFactory internal factory;
 
     function setUp() public {
-        factory = new DAOFactory(address(this));
+        TokenDeployer tokenDeployer = new TokenDeployer();
+        GovernorDeployer governorDeployer = new GovernorDeployer();
+        MarketDeployer marketDeployer = new MarketDeployer();
+
+        factory = new DAOFactory(
+            address(this),
+            address(tokenDeployer),
+            address(governorDeployer),
+            address(marketDeployer)
+        );
     }
 
     function testCreateDAO() public {

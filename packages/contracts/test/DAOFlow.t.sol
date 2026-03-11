@@ -6,6 +6,9 @@ import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAO} from "../src/DAO.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
+import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
+import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
+import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFlowTest is Test {
     DAOFactory internal factory;
@@ -16,7 +19,16 @@ contract DAOFlowTest is Test {
     address internal alice = address(0xA11CE);
 
     function setUp() public {
-        factory = new DAOFactory(address(this));
+        TokenDeployer tokenDeployer = new TokenDeployer();
+        GovernorDeployer governorDeployer = new GovernorDeployer();
+        MarketDeployer marketDeployer = new MarketDeployer();
+
+        factory = new DAOFactory(
+            address(this),
+            address(tokenDeployer),
+            address(governorDeployer),
+            address(marketDeployer)
+        );
 
         uint256 id = factory.createDAO("Flow DAO", "FLOW", 20_000, 0.0001 ether, 0.00001 ether, 4);
         DAOFactory.DAOInfo memory info = factory.getDAO(id);

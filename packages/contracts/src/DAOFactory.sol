@@ -5,10 +5,13 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
-import {DAO} from "./DAO.sol";
-import {DAOTokenMarket} from "./DAOTokenMarket.sol";
+import {TokenDeployer} from "./deployers/TokenDeployer.sol";
+import {GovernorDeployer} from "./deployers/GovernorDeployer.sol";
+import {MarketDeployer} from "./deployers/MarketDeployer.sol";
 
 contract DAOFactory is Ownable {
+    uint256 private constant TOKEN_UNIT = 1e18;
+
     struct DAOInfo {
         uint256 id;
         string name;
@@ -24,6 +27,10 @@ contract DAOFactory is Ownable {
     uint48 public constant DEFAULT_VOTING_DELAY = 1 hours;
     uint32 public constant DEFAULT_VOTING_PERIOD = 1 days;
     uint256 public constant DEFAULT_TIMELOCK_DELAY = 1 hours;
+
+    TokenDeployer public immutable tokenDeployer;
+    GovernorDeployer public immutable governorDeployer;
+    MarketDeployer public immutable marketDeployer;
 
     DAOInfo[] private daos;
 
@@ -43,7 +50,20 @@ contract DAOFactory is Ownable {
         address timelock;
     }
 
-    constructor(address owner_) Ownable(owner_) {}
+    constructor(
+        address owner_,
+        address tokenDeployer_,
+        address governorDeployer_,
+        address marketDeployer_
+    ) Ownable(owner_) {
+        require(tokenDeployer_ != address(0), "token-deployer=0");
+        require(governorDeployer_ != address(0), "governor-deployer=0");
+        require(marketDeployer_ != address(0), "market-deployer=0");
+
+        tokenDeployer = TokenDeployer(tokenDeployer_);
+        governorDeployer = GovernorDeployer(governorDeployer_);
+        marketDeployer = MarketDeployer(marketDeployer_);
+    }
 
     function createDAO(
         string memory name,
@@ -65,51 +85,43 @@ contract DAOFactory is Ownable {
         bytes32 daoSalt = _typedSalt(deploymentSalt, "GOVERNOR");
         bytes32 marketSalt = _typedSalt(deploymentSalt, "MARKET");
 
-        DAOGovernanceToken token = new DAOGovernanceToken{salt: tokenSalt}(
-            name,
-            symbol,
-            address(this),
-            initialSupply
-        );
+        address tokenAddress = tokenDeployer.deploy(tokenSalt, name, symbol, address(this), initialSupply);
+        DAOGovernanceToken token = DAOGovernanceToken(tokenAddress);
 
         if (initialSupply > 0) {
-            token.transfer(msg.sender, initialSupply * token.TOKEN_UNIT());
+            require(token.transfer(msg.sender, initialSupply * TOKEN_UNIT), "initial-transfer-failed");
         }
 
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](0);
-        TimelockController timelock = new TimelockController{salt: timelockSalt}(
-            DEFAULT_TIMELOCK_DELAY,
-            proposers,
-            executors,
+        (address daoAddress, address timelockAddress) = governorDeployer.deploy(
+            timelockSalt,
+            daoSalt,
+            string.concat(name, " Governor"),
+            IVotes(tokenAddress),
+            DEFAULT_VOTING_DELAY,
+            DEFAULT_VOTING_PERIOD,
+            quorumNumerator,
             address(this)
         );
 
-        DAO dao = new DAO{salt: daoSalt}(
-            string.concat(name, " Governor"),
-            token,
-            timelock,
-            DEFAULT_VOTING_DELAY,
-            DEFAULT_VOTING_PERIOD,
-            quorumNumerator
-        );
+        TimelockController timelock = TimelockController(payable(timelockAddress));
 
-        DAOTokenMarket market = new DAOTokenMarket{salt: marketSalt}(
+        address marketAddress = marketDeployer.deploy(
+            marketSalt,
             token,
-            address(timelock),
+            timelockAddress,
             basePriceWei,
             slopeWei
         );
 
-        token.transferOwnership(address(market));
+        token.transferOwnership(marketAddress);
 
         bytes32 proposerRole = timelock.PROPOSER_ROLE();
         bytes32 executorRole = timelock.EXECUTOR_ROLE();
         bytes32 cancellerRole = timelock.CANCELLER_ROLE();
         bytes32 adminRole = timelock.DEFAULT_ADMIN_ROLE();
 
-        timelock.grantRole(proposerRole, address(dao));
-        timelock.grantRole(cancellerRole, address(dao));
+        timelock.grantRole(proposerRole, daoAddress);
+        timelock.grantRole(cancellerRole, daoAddress);
         timelock.grantRole(executorRole, address(0));
         timelock.revokeRole(adminRole, address(this));
 
@@ -119,22 +131,15 @@ contract DAOFactory is Ownable {
                 name: name,
                 symbol: symbol,
                 creator: msg.sender,
-                token: address(token),
-                dao: address(dao),
-                market: address(market),
-                timelock: address(timelock),
+                token: tokenAddress,
+                dao: daoAddress,
+                market: marketAddress,
+                timelock: timelockAddress,
                 createdAt: block.timestamp
             })
         );
 
-        emit DAOCreated(
-            daoId,
-            msg.sender,
-            address(token),
-            address(dao),
-            address(market),
-            address(timelock)
-        );
+        emit DAOCreated(daoId, msg.sender, tokenAddress, daoAddress, marketAddress, timelockAddress);
     }
 
     function predictAddresses(
@@ -154,58 +159,31 @@ contract DAOFactory is Ownable {
         bytes32 daoSalt = _typedSalt(deploymentSalt, "GOVERNOR");
         bytes32 marketSalt = _typedSalt(deploymentSalt, "MARKET");
 
-        predicted.token = _computeCreate2Address(
+        predicted.token = tokenDeployer.predict(
             tokenSalt,
-            keccak256(
-                abi.encodePacked(
-                    type(DAOGovernanceToken).creationCode,
-                    abi.encode(name, symbol, address(this), initialSupply)
-                )
-            )
+            name,
+            symbol,
+            address(this),
+            initialSupply
         );
 
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](0);
-        predicted.timelock = _computeCreate2Address(
+        (predicted.dao, predicted.timelock) = governorDeployer.predict(
             timelockSalt,
-            keccak256(
-                abi.encodePacked(
-                    type(TimelockController).creationCode,
-                    abi.encode(DEFAULT_TIMELOCK_DELAY, proposers, executors, address(this))
-                )
-            )
-        );
-
-        predicted.dao = _computeCreate2Address(
             daoSalt,
-            keccak256(
-                abi.encodePacked(
-                    type(DAO).creationCode,
-                    abi.encode(
-                        string.concat(name, " Governor"),
-                        IVotes(predicted.token),
-                        TimelockController(payable(predicted.timelock)),
-                        DEFAULT_VOTING_DELAY,
-                        DEFAULT_VOTING_PERIOD,
-                        quorumNumerator
-                    )
-                )
-            )
+            string.concat(name, " Governor"),
+            IVotes(predicted.token),
+            DEFAULT_VOTING_DELAY,
+            DEFAULT_VOTING_PERIOD,
+            quorumNumerator,
+            address(this)
         );
 
-        predicted.market = _computeCreate2Address(
+        predicted.market = marketDeployer.predict(
             marketSalt,
-            keccak256(
-                abi.encodePacked(
-                    type(DAOTokenMarket).creationCode,
-                    abi.encode(
-                        DAOGovernanceToken(predicted.token),
-                        predicted.timelock,
-                        basePriceWei,
-                        slopeWei
-                    )
-                )
-            )
+            DAOGovernanceToken(predicted.token),
+            predicted.timelock,
+            basePriceWei,
+            slopeWei
         );
     }
 
@@ -249,7 +227,4 @@ contract DAOFactory is Ownable {
         return keccak256(abi.encode(deploymentSalt, kind));
     }
 
-    function _computeCreate2Address(bytes32 salt, bytes32 initCodeHash) private view returns (address) {
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))));
-    }
 }
