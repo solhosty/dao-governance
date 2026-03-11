@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Web3Provider } from "@/components/providers/web3-provider";
 import { WalletConnectButton } from "@/components/wallet/wallet-connect-button";
 
+import "@rainbow-me/rainbowkit/styles.css";
 import "../styles/globals.css";
 
 export const metadata: Metadata = {

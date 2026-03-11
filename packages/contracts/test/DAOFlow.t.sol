@@ -33,7 +33,15 @@ contract DAOFlowTest is Test {
             address(marketDeployer)
         );
 
-        uint256 id = factory.createDAO("Flow DAO", "FLOW", 20_000, 0.0001 ether, 0.00001 ether, 4);
+        uint256 id = factory.createDAO(
+            "Flow DAO",
+            "Flow Governance Token",
+            "FLOW",
+            20_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
 
         dao = DAO(payable(info.dao));

@@ -67,13 +67,14 @@ Create `packages/web/.env.local`:
 ```bash
 NEXT_PUBLIC_DAO_FACTORY_ADDRESS=0xYourFactoryAddress
 NEXT_PUBLIC_CHAIN_ID=11155111
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-walletconnect-project-id
 NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your-key
 NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8545
 ```
 
 Use `NEXT_PUBLIC_CHAIN_ID=31337` during local development with Anvil.
-The wallet connect controls in the app header require wagmi RPC configuration,
-so keep `NEXT_PUBLIC_SEPOLIA_RPC_URL` set when targeting Sepolia.
+RainbowKit requires `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` for WalletConnect,
+and `NEXT_PUBLIC_SEPOLIA_RPC_URL` should stay configured when targeting Sepolia.
 
 Run the app:
 
@@ -84,7 +85,7 @@ pnpm --filter web dev
 ## End-to-End Flow
 
 1. Deploy `DAOFactory`
-2. Call `createDAO` from any EOA (script, cast, or UI extension)
+2. Call `createDAO(daoName, tokenName, tokenSymbol, initialSupply, ...)` from any EOA
 3. Open `/tokens` to discover created DAO markets
 4. Buy governance tokens from `/tokens/[marketAddress]`
 5. Delegate votes with token contract

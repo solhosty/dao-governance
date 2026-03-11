@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { CreateDaoForm } from "@/components/dao/create-dao-form";
+
 export default function HomePage() {
   return (
     <main className="space-y-8">
@@ -24,6 +26,7 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+      <CreateDaoForm />
     </main>
   );
 }

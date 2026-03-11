@@ -4,14 +4,28 @@ export const daoFactoryAbi = [
     name: "createDAO",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "name", type: "string" },
-      { name: "symbol", type: "string" },
+      { name: "daoName", type: "string" },
+      { name: "tokenName", type: "string" },
+      { name: "tokenSymbol", type: "string" },
       { name: "initialSupply", type: "uint256" },
       { name: "basePriceWei", type: "uint256" },
       { name: "slopeWei", type: "uint256" },
       { name: "quorumNumerator", type: "uint256" },
     ],
     outputs: [{ name: "daoId", type: "uint256" }],
+  },
+  {
+    type: "event",
+    name: "DAOCreated",
+    inputs: [
+      { name: "daoId", type: "uint256", indexed: true },
+      { name: "creator", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "dao", type: "address", indexed: false },
+      { name: "market", type: "address", indexed: false },
+      { name: "timelock", type: "address", indexed: false },
+    ],
+    anonymous: false,
   },
   {
     type: "function",
@@ -32,6 +46,7 @@ export const daoFactoryAbi = [
         components: [
           { name: "id", type: "uint256" },
           { name: "name", type: "string" },
+          { name: "tokenName", type: "string" },
           { name: "symbol", type: "string" },
           { name: "creator", type: "address" },
           { name: "token", type: "address" },

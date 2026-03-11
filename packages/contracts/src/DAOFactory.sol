@@ -16,6 +16,7 @@ contract DAOFactory is Ownable {
     struct DAOInfo {
         uint256 id;
         string name;
+        string tokenName;
         string symbol;
         address creator;
         address token;
@@ -71,26 +72,40 @@ contract DAOFactory is Ownable {
     }
 
     function createDAO(
-        string memory name,
-        string memory symbol,
+        string memory daoName,
+        string memory tokenName,
+        string memory tokenSymbol,
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
         uint256 quorumNumerator
     ) external returns (uint256 daoId) {
-        require(bytes(name).length > 0, "name-empty");
-        require(bytes(symbol).length > 0, "symbol-empty");
+        require(bytes(daoName).length > 0, "dao-name-empty");
+        require(bytes(tokenName).length > 0, "token-name-empty");
+        require(bytes(tokenSymbol).length > 0, "symbol-empty");
         require(quorumNumerator > 0 && quorumNumerator <= 100, "bad-quorum");
 
         daoId = daos.length;
-        bytes32 deploymentSalt = _deploymentSalt(msg.sender, name, symbol, daoId);
+        bytes32 deploymentSalt = _deploymentSalt(
+            msg.sender,
+            daoName,
+            tokenName,
+            tokenSymbol,
+            daoId
+        );
 
         bytes32 tokenSalt = _typedSalt(deploymentSalt, "TOKEN");
         bytes32 timelockSalt = _typedSalt(deploymentSalt, "TIMELOCK");
         bytes32 daoSalt = _typedSalt(deploymentSalt, "GOVERNOR");
         bytes32 marketSalt = _typedSalt(deploymentSalt, "MARKET");
 
-        address tokenAddress = tokenDeployer.deploy(tokenSalt, name, symbol, address(this), initialSupply);
+        address tokenAddress = tokenDeployer.deploy(
+            tokenSalt,
+            tokenName,
+            tokenSymbol,
+            address(this),
+            initialSupply
+        );
         DAOGovernanceToken token = DAOGovernanceToken(tokenAddress);
 
         if (initialSupply > 0) {
@@ -100,7 +115,7 @@ contract DAOFactory is Ownable {
         (address daoAddress, address timelockAddress) = governorDeployer.deploy(
             timelockSalt,
             daoSalt,
-            string.concat(name, " Governor"),
+            string.concat(daoName, " Governor"),
             IVotes(tokenAddress),
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
@@ -133,8 +148,9 @@ contract DAOFactory is Ownable {
         daos.push(
             DAOInfo({
                 id: daoId,
-                name: name,
-                symbol: symbol,
+                name: daoName,
+                tokenName: tokenName,
+                symbol: tokenSymbol,
                 creator: msg.sender,
                 token: tokenAddress,
                 dao: daoAddress,
@@ -149,15 +165,22 @@ contract DAOFactory is Ownable {
 
     function predictAddresses(
         address creator,
-        string memory name,
-        string memory symbol,
+        string memory daoName,
+        string memory tokenName,
+        string memory tokenSymbol,
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
         uint256 quorumNumerator
     ) external view returns (PredictedAddresses memory predicted) {
         uint256 daoId = daos.length;
-        bytes32 deploymentSalt = _deploymentSalt(creator, name, symbol, daoId);
+        bytes32 deploymentSalt = _deploymentSalt(
+            creator,
+            daoName,
+            tokenName,
+            tokenSymbol,
+            daoId
+        );
 
         bytes32 tokenSalt = _typedSalt(deploymentSalt, "TOKEN");
         bytes32 timelockSalt = _typedSalt(deploymentSalt, "TIMELOCK");
@@ -166,8 +189,8 @@ contract DAOFactory is Ownable {
 
         predicted.token = tokenDeployer.predict(
             tokenSalt,
-            name,
-            symbol,
+            tokenName,
+            tokenSymbol,
             address(this),
             initialSupply
         );
@@ -180,7 +203,7 @@ contract DAOFactory is Ownable {
 
         predicted.dao = governorDeployer.predictDAO(
             daoSalt,
-            string.concat(name, " Governor"),
+            string.concat(daoName, " Governor"),
             IVotes(predicted.token),
             predicted.timelock,
             DEFAULT_VOTING_DELAY,
@@ -226,11 +249,12 @@ contract DAOFactory is Ownable {
 
     function _deploymentSalt(
         address creator,
-        string memory name,
-        string memory symbol,
+        string memory daoName,
+        string memory tokenName,
+        string memory tokenSymbol,
         uint256 daoId
     ) private pure returns (bytes32) {
-        return keccak256(abi.encode(creator, name, symbol, daoId));
+        return keccak256(abi.encode(creator, daoName, tokenName, tokenSymbol, daoId));
     }
 
     function _typedSalt(bytes32 deploymentSalt, string memory kind) private pure returns (bytes32) {

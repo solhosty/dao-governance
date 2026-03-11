@@ -32,6 +32,7 @@ contract DAOFactoryTest is Test {
         DAOFactory.PredictedAddresses memory predicted = factory.predictAddresses(
             address(this),
             "Alpha DAO",
+            "Alpha Governance Token",
             "ALPHA",
             1_000,
             0.0001 ether,
@@ -39,10 +40,21 @@ contract DAOFactoryTest is Test {
             4
         );
 
-        uint256 id = factory.createDAO("Alpha DAO", "ALPHA", 1_000, 0.0001 ether, 0.00001 ether, 4);
+        uint256 id = factory.createDAO(
+            "Alpha DAO",
+            "Alpha Governance Token",
+            "ALPHA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
 
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
         assertEq(info.id, 0);
+        assertEq(info.name, "Alpha DAO");
+        assertEq(info.tokenName, "Alpha Governance Token");
+        assertEq(info.symbol, "ALPHA");
         assertEq(info.creator, address(this));
         assertTrue(info.token != address(0));
         assertTrue(info.dao != address(0));
@@ -57,6 +69,8 @@ contract DAOFactoryTest is Test {
         DAOTokenMarket market = DAOTokenMarket(payable(info.market));
 
         assertEq(token.owner(), address(market));
+        assertEq(token.name(), "Alpha Governance Token");
+        assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
     }

@@ -30,7 +30,9 @@ function DaoCard({ daoId }: { daoId: bigint }) {
     <article className="rounded-lg border border-white/40 bg-white/60 p-4 shadow-glass backdrop-blur-md">
       <p className="text-xs text-slate-500">DAO #{String(data.id)}</p>
       <h3 className="text-lg font-semibold">{data.name}</h3>
-      <p className="text-sm text-slate-600">{data.symbol}</p>
+      <p className="text-sm text-slate-600">
+        {data.tokenName} ({data.symbol})
+      </p>
       <div className="mt-3 flex gap-2">
         <Link className="text-sm underline" href={`/tokens/${data.market}`}>
           Open market
