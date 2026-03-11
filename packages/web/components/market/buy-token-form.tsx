@@ -14,6 +14,7 @@ import { daoTokenMarketAbi } from "@/lib/abi/daoTokenMarket";
 
 type BuyTokenFormProps = {
   marketAddress: `0x${string}`;
+  tokenSymbol?: string;
 };
 
 type TradeTab = "buy" | "sell";
@@ -41,7 +42,7 @@ function parseSlippageBps(input: string): bigint {
   return BigInt(Math.floor(bounded * 100));
 }
 
-export function BuyTokenForm({ marketAddress }: BuyTokenFormProps) {
+export function BuyTokenForm({ marketAddress, tokenSymbol = "TOKEN" }: BuyTokenFormProps) {
   const [tab, setTab] = useState<TradeTab>("buy");
   const [ethAmount, setEthAmount] = useState("0.1");
   const [sellTokenAmount, setSellTokenAmount] = useState("1");
@@ -204,9 +205,11 @@ export function BuyTokenForm({ marketAddress }: BuyTokenFormProps) {
               placeholder="ETH amount"
             />
             <p className="text-xs text-slate-500">
-              Expected output: {isBuyQuoteLoading ? "Loading..." : String(buyQuote ?? 0n)} GOV
+              Expected output: {isBuyQuoteLoading ? "Loading..." : String(buyQuote ?? 0n)} {tokenSymbol}
             </p>
-            <p className="text-xs text-slate-500">Minimum output after slippage: {String(buyMinTokensOut)} GOV</p>
+            <p className="text-xs text-slate-500">
+              Minimum output after slippage: {String(buyMinTokensOut)} {tokenSymbol}
+            </p>
           </>
         ) : (
           <>
@@ -214,7 +217,7 @@ export function BuyTokenForm({ marketAddress }: BuyTokenFormProps) {
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
               value={sellTokenAmount}
               onChange={(event) => setSellTokenAmount(event.target.value)}
-              placeholder="Token amount"
+              placeholder={`${tokenSymbol} amount`}
             />
             <p className="text-xs text-slate-500">
               Estimated ETH out: {isSellQuoteLoading ? "Loading..." : formatEther(sellQuote ?? 0n)} ETH

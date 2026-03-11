@@ -2,15 +2,47 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useMemo, useState } from "react";
-import { parseEventLogs } from "viem";
+import { formatEther, parseEther, parseEventLogs } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
 
 import { daoFactoryAbi } from "@/lib/abi/daoFactory";
 import { DAO_FACTORY_ADDRESS, DEFAULT_CHAIN_ID } from "@/lib/contracts";
 
-const DEFAULT_BASE_PRICE_WEI = 100_000_000_000_000n;
-const DEFAULT_SLOPE_WEI = 10_000_000_000_000n;
+const DEFAULT_BASE_PRICE_ETH = "0.00001";
+const DEFAULT_SLOPE_ETH = "0.0000001";
 const DEFAULT_QUORUM_NUMERATOR = 4n;
+const MAX_BASE_PRICE_WEI = 10_000_000_000_000_000n;
+const MAX_SLOPE_WEI = 1_000_000_000_000_000n;
+
+function parseEthInputToWei(input: string): bigint | null {
+  const trimmed = input.trim();
+  if (!/^\d+(\.\d{1,18})?$/.test(trimmed)) {
+    return null;
+  }
+
+  try {
+    return parseEther(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function costForTokens(
+  currentSupplyTokens: bigint,
+  tokensToBuy: bigint,
+  basePriceWei: bigint,
+  slopeWei: bigint,
+): bigint {
+  if (tokensToBuy === 0n) {
+    return 0n;
+  }
+
+  const linearCost = tokensToBuy * basePriceWei;
+  const supplyComponent = tokensToBuy * currentSupplyTokens;
+  const progressiveComponent = (tokensToBuy * (tokensToBuy - 1n)) / 2n;
+  const curveCost = slopeWei * (supplyComponent + progressiveComponent);
+  return linearCost + curveCost;
+}
 
 export function CreateDaoForm() {
   const router = useRouter();
@@ -21,6 +53,8 @@ export function CreateDaoForm() {
   const [tokenName, setTokenName] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState("");
   const [initialSupply, setInitialSupply] = useState("1000000");
+  const [basePriceEth, setBasePriceEth] = useState(DEFAULT_BASE_PRICE_ETH);
+  const [slopeEth, setSlopeEth] = useState(DEFAULT_SLOPE_ETH);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
@@ -36,6 +70,20 @@ export function CreateDaoForm() {
 
     return parsed;
   }, [initialSupply]);
+
+  const parsedBasePriceWei = useMemo(() => parseEthInputToWei(basePriceEth), [basePriceEth]);
+  const parsedSlopeWei = useMemo(() => parseEthInputToWei(slopeEth), [slopeEth]);
+
+  const previewCosts = useMemo(() => {
+    if (parsedSupply === null || parsedBasePriceWei === null || parsedSlopeWei === null) {
+      return null;
+    }
+
+    return [1n, 10n, 100n].map((tokenAmount) => ({
+      tokenAmount,
+      costWei: costForTokens(parsedSupply, tokenAmount, parsedBasePriceWei, parsedSlopeWei),
+    }));
+  }, [parsedBasePriceWei, parsedSlopeWei, parsedSupply]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,6 +114,31 @@ export function CreateDaoForm() {
       return;
     }
 
+    if (parsedBasePriceWei === null) {
+      setError("Base price must be a valid ETH amount with up to 18 decimals");
+      return;
+    }
+
+    if (parsedSlopeWei === null) {
+      setError("Slope must be a valid ETH amount with up to 18 decimals");
+      return;
+    }
+
+    if (parsedBasePriceWei <= 0n) {
+      setError("Base price must be greater than zero");
+      return;
+    }
+
+    if (parsedBasePriceWei > MAX_BASE_PRICE_WEI) {
+      setError("Base price must be at most 0.01 ETH");
+      return;
+    }
+
+    if (parsedSlopeWei > MAX_SLOPE_WEI) {
+      setError("Slope must be at most 0.001 ETH");
+      return;
+    }
+
     if (!publicClient) {
       setError("Wallet client is unavailable on the selected chain");
       return;
@@ -82,8 +155,8 @@ export function CreateDaoForm() {
           tokenName.trim(),
           tokenSymbol.trim().toUpperCase(),
           parsedSupply,
-          DEFAULT_BASE_PRICE_WEI,
-          DEFAULT_SLOPE_WEI,
+          parsedBasePriceWei,
+          parsedSlopeWei,
           DEFAULT_QUORUM_NUMERATOR,
         ],
       });
@@ -154,6 +227,37 @@ export function CreateDaoForm() {
               placeholder="1000000"
             />
           </label>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-sm">
+            <span>Base price (ETH per token)</span>
+            <input
+              className="rounded-md border border-slate-300 bg-white px-3 py-2"
+              inputMode="decimal"
+              value={basePriceEth}
+              onChange={(event) => setBasePriceEth(event.target.value)}
+              placeholder={DEFAULT_BASE_PRICE_ETH}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span>Slope (ETH per token step)</span>
+            <input
+              className="rounded-md border border-slate-300 bg-white px-3 py-2"
+              inputMode="decimal"
+              value={slopeEth}
+              onChange={(event) => setSlopeEth(event.target.value)}
+              placeholder={DEFAULT_SLOPE_ETH}
+            />
+          </label>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {previewCosts ? (
+            <p>
+              Launch pricing preview: {previewCosts.map(({ tokenAmount, costWei }) => `${tokenAmount.toString()} token${tokenAmount === 1n ? "" : "s"} ≈ ${formatEther(costWei)} ETH`).join(" | ")}
+            </p>
+          ) : (
+            <p>Enter valid initial supply, base price, and slope to preview launch costs</p>
+          )}
         </div>
         <button
           className="mt-2 w-fit rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"

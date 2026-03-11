@@ -15,6 +15,20 @@ export const daoTokenMarketAbi = [
   },
   {
     type: "function",
+    name: "token",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "circulatingSupplyTokens",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "quoteBuy",
     stateMutability: "view",
     inputs: [{ name: "ethAmount", type: "uint256" }],
