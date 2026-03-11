@@ -1,0 +1,9 @@
+{
+  "name": "contracts",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "~/.foundry/bin/forge build",
+    "test": "~/.foundry/bin/forge test"
+  }
+}
