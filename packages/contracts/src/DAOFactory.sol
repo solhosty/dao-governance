@@ -7,6 +7,7 @@ import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
 import {TokenDeployer} from "./deployers/TokenDeployer.sol";
 import {GovernorDeployer} from "./deployers/GovernorDeployer.sol";
+import {GovernorPredictor} from "./deployers/GovernorPredictor.sol";
 import {MarketDeployer} from "./deployers/MarketDeployer.sol";
 
 contract DAOFactory is Ownable {
@@ -30,6 +31,7 @@ contract DAOFactory is Ownable {
 
     TokenDeployer public immutable tokenDeployer;
     GovernorDeployer public immutable governorDeployer;
+    GovernorPredictor public immutable governorPredictor;
     MarketDeployer public immutable marketDeployer;
 
     DAOInfo[] private daos;
@@ -54,14 +56,17 @@ contract DAOFactory is Ownable {
         address owner_,
         address tokenDeployer_,
         address governorDeployer_,
+        address governorPredictor_,
         address marketDeployer_
     ) Ownable(owner_) {
         require(tokenDeployer_ != address(0), "token-deployer=0");
         require(governorDeployer_ != address(0), "governor-deployer=0");
+        require(governorPredictor_ != address(0), "governor-predictor=0");
         require(marketDeployer_ != address(0), "market-deployer=0");
 
         tokenDeployer = TokenDeployer(tokenDeployer_);
         governorDeployer = GovernorDeployer(governorDeployer_);
+        governorPredictor = GovernorPredictor(governorPredictor_);
         marketDeployer = MarketDeployer(marketDeployer_);
     }
 
@@ -167,15 +172,20 @@ contract DAOFactory is Ownable {
             initialSupply
         );
 
-        (predicted.dao, predicted.timelock) = governorDeployer.predict(
+        predicted.timelock = governorPredictor.predictTimelock(
+            address(governorPredictor),
             timelockSalt,
+            address(this)
+        );
+
+        predicted.dao = governorDeployer.predictDAO(
             daoSalt,
             string.concat(name, " Governor"),
             IVotes(predicted.token),
+            predicted.timelock,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            quorumNumerator,
-            address(this)
+            quorumNumerator
         );
 
         predicted.market = marketDeployer.predict(

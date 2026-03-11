@@ -4,8 +4,16 @@ pragma solidity ^0.8.24;
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {DAO} from "../DAO.sol";
+import {GovernorPredictor} from "./GovernorPredictor.sol";
 
 contract GovernorDeployer {
+    GovernorPredictor public immutable governorPredictor;
+
+    constructor(address governorPredictor_) {
+        require(governorPredictor_ != address(0), "governor-predictor=0");
+        governorPredictor = GovernorPredictor(governorPredictor_);
+    }
+
     function deploy(
         bytes32 timelockSalt,
         bytes32 daoSalt,
@@ -16,49 +24,29 @@ contract GovernorDeployer {
         uint256 quorumNumerator,
         address timelockAdmin
     ) external returns (address dao, address timelock) {
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](0);
+        timelock = governorPredictor.deployTimelock(timelockSalt, timelockAdmin);
 
-        TimelockController deployedTimelock = new TimelockController{salt: timelockSalt}(
-            1 hours,
-            proposers,
-            executors,
-            timelockAdmin
-        );
         DAO deployedDAO = new DAO{salt: daoSalt}(
             governorName,
             token,
-            deployedTimelock,
+            TimelockController(payable(timelock)),
             votingDelaySeconds,
             votingPeriodSeconds,
             quorumNumerator
         );
 
         dao = address(deployedDAO);
-        timelock = address(deployedTimelock);
     }
 
-    function predict(
-        bytes32 timelockSalt,
+    function predictDAO(
         bytes32 daoSalt,
         string memory governorName,
         IVotes token,
+        address timelock,
         uint48 votingDelaySeconds,
         uint32 votingPeriodSeconds,
-        uint256 quorumNumerator,
-        address timelockAdmin
-    ) external view returns (address dao, address timelock) {
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](0);
-
-        bytes32 timelockInitCodeHash = keccak256(
-            abi.encodePacked(
-                type(TimelockController).creationCode,
-                abi.encode(1 hours, proposers, executors, timelockAdmin)
-            )
-        );
-        timelock = _computeCreate2Address(timelockSalt, timelockInitCodeHash);
-
+        uint256 quorumNumerator
+    ) external view returns (address dao) {
         bytes32 daoInitCodeHash = keccak256(
             abi.encodePacked(
                 type(DAO).creationCode,

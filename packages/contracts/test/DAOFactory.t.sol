@@ -7,6 +7,7 @@ import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
 import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
 import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
+import {GovernorPredictor} from "../src/deployers/GovernorPredictor.sol";
 import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFactoryTest is Test {
@@ -14,13 +15,15 @@ contract DAOFactoryTest is Test {
 
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorDeployer governorDeployer = new GovernorDeployer();
+        GovernorPredictor governorPredictor = new GovernorPredictor();
+        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
             address(this),
             address(tokenDeployer),
             address(governorDeployer),
+            address(governorPredictor),
             address(marketDeployer)
         );
     }
