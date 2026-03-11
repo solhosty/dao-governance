@@ -1,5 +1,21 @@
 export const daoAbi = [
   {
+    type: "event",
+    name: "ProposalCreated",
+    inputs: [
+      { name: "proposalId", type: "uint256", indexed: true },
+      { name: "proposer", type: "address", indexed: true },
+      { name: "targets", type: "address[]", indexed: false },
+      { name: "values", type: "uint256[]", indexed: false },
+      { name: "signatures", type: "string[]", indexed: false },
+      { name: "calldatas", type: "bytes[]", indexed: false },
+      { name: "voteStart", type: "uint256", indexed: false },
+      { name: "voteEnd", type: "uint256", indexed: false },
+      { name: "description", type: "string", indexed: false },
+    ],
+    anonymous: false,
+  },
+  {
     type: "function",
     name: "propose",
     stateMutability: "nonpayable",
@@ -27,6 +43,20 @@ export const daoAbi = [
     stateMutability: "view",
     inputs: [{ name: "proposalId", type: "uint256" }],
     outputs: [{ name: "", type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "proposalSnapshot",
+    stateMutability: "view",
+    inputs: [{ name: "proposalId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "proposalDeadline",
+    stateMutability: "view",
+    inputs: [{ name: "proposalId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
   },
   {
     type: "function",

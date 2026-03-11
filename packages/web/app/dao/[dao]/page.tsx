@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { getAddress } from "viem";
-import { useReadContract, useWriteContract } from "wagmi";
+import { useEffect, useMemo, useState } from "react";
+import { getAbiItem, getAddress } from "viem";
+import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 
 import { CreateProposalModal } from "@/components/dao/create-proposal-modal";
 import { Breadcrumbs } from "@/components/navigation/breadcrumbs";
@@ -19,15 +19,38 @@ type DAOPageProps = {
 
 export default function DaoDetailPage({ params }: DAOPageProps) {
   const [proposalId, setProposalId] = useState("");
+  const [proposalFeed, setProposalFeed] = useState<
+    Array<{
+      proposalId: bigint;
+      proposer: `0x${string}`;
+      description: string;
+      voteStart: bigint;
+      voteEnd: bigint;
+      blockNumber: bigint;
+    }>
+  >([]);
+  const [proposalStates, setProposalStates] = useState<Record<string, bigint>>({});
+  const [proposalLoadError, setProposalLoadError] = useState<string | null>(null);
+
+  const publicClient = usePublicClient();
 
   const parsedDaoId = useMemo(() => {
-    if (/^\d+$/.test(params.dao)) {
-      return BigInt(params.dao);
+    const match = /^(\d+)(?:[-_].*)?$/.exec(params.dao);
+    if (match?.[1]) {
+      return BigInt(match[1]);
     }
     return undefined;
   }, [params.dao]);
 
-  const { data: info } = useReadContract({
+  const parsedDaoAddress = useMemo(() => {
+    try {
+      return getAddress(params.dao);
+    } catch {
+      return undefined;
+    }
+  }, [params.dao]);
+
+  const { data: infoById } = useReadContract({
     abi: daoFactoryAbi,
     address: DAO_FACTORY_ADDRESS,
     functionName: "getDAO",
@@ -35,16 +58,156 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
     query: { enabled: Boolean(DAO_FACTORY_ADDRESS && parsedDaoId !== undefined) },
   });
 
-  const daoAddress = useMemo(() => {
-    if (info?.dao) {
-      return getAddress(info.dao);
+  const { data: totalDaos } = useReadContract({
+    abi: daoFactoryAbi,
+    address: DAO_FACTORY_ADDRESS,
+    functionName: "totalDAOs",
+    query: { enabled: Boolean(DAO_FACTORY_ADDRESS) },
+  });
+
+  const { data: listedDaos } = useReadContract({
+    abi: daoFactoryAbi,
+    address: DAO_FACTORY_ADDRESS,
+    functionName: "listDAOs",
+    args: totalDaos !== undefined ? [0n, totalDaos] : undefined,
+    query: {
+      enabled: Boolean(DAO_FACTORY_ADDRESS && totalDaos !== undefined && totalDaos > 0n),
+    },
+  });
+
+  const resolvedInfo = useMemo(() => {
+    if (infoById) {
+      return infoById;
     }
-    try {
-      return getAddress(params.dao);
-    } catch {
+
+    if (!parsedDaoAddress || !listedDaos) {
       return undefined;
     }
-  }, [info?.dao, params.dao]);
+
+    return listedDaos.find((item) => {
+      try {
+        return getAddress(item.dao) === parsedDaoAddress;
+      } catch {
+        return false;
+      }
+    });
+  }, [infoById, listedDaos, parsedDaoAddress]);
+
+  const daoAddress = useMemo(() => {
+    if (resolvedInfo?.dao) {
+      return getAddress(resolvedInfo.dao);
+    }
+
+    return parsedDaoAddress;
+  }, [parsedDaoAddress, resolvedInfo?.dao]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProposalFeed() {
+      if (!publicClient || !daoAddress) {
+        if (!cancelled) {
+          setProposalFeed([]);
+          setProposalLoadError(null);
+        }
+        return;
+      }
+
+      try {
+        const logs = await publicClient.getLogs({
+          address: daoAddress,
+          event: getAbiItem({ abi: daoAbi, name: "ProposalCreated" }),
+          fromBlock: 0n,
+          toBlock: "latest",
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const feed = logs
+          .map((log) => {
+            const args = log.args;
+
+            if (
+              args.proposalId === undefined ||
+              args.proposer === undefined ||
+              args.description === undefined ||
+              args.voteStart === undefined ||
+              args.voteEnd === undefined ||
+              log.blockNumber === null
+            ) {
+              return null;
+            }
+
+            return {
+              proposalId: args.proposalId,
+              proposer: args.proposer,
+              description: args.description,
+              voteStart: args.voteStart,
+              voteEnd: args.voteEnd,
+              blockNumber: log.blockNumber,
+            };
+          })
+          .filter((entry) => entry !== null)
+          .sort((a, b) => Number(b.blockNumber - a.blockNumber));
+
+        setProposalFeed(feed);
+        setProposalLoadError(null);
+      } catch (error) {
+        if (!cancelled) {
+          setProposalFeed([]);
+          setProposalLoadError(error instanceof Error ? error.message : "Unable to load proposals");
+        }
+      }
+    }
+
+    void loadProposalFeed();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [daoAddress, publicClient]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProposalStates() {
+      if (!publicClient || !daoAddress || proposalFeed.length === 0) {
+        if (!cancelled) {
+          setProposalStates({});
+        }
+        return;
+      }
+
+      const entries = await Promise.all(
+        proposalFeed.map(async (proposal) => {
+          try {
+            const state = await publicClient.readContract({
+              abi: daoAbi,
+              address: daoAddress,
+              functionName: "state",
+              args: [proposal.proposalId],
+            });
+
+            return [proposal.proposalId.toString(), state] as const;
+          } catch {
+            return [proposal.proposalId.toString(), 0n] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setProposalStates(Object.fromEntries(entries));
+      }
+    }
+
+    void loadProposalStates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [daoAddress, proposalFeed, publicClient]);
 
   const parsedProposalId = useMemo(() => {
     if (/^\d+$/.test(proposalId)) {
@@ -62,6 +225,25 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
   });
 
   const { writeContract, isPending } = useWriteContract();
+
+  const daoLabel = resolvedInfo
+    ? `${resolvedInfo.name} (${resolvedInfo.symbol})`
+    : parsedDaoId !== undefined
+      ? `DAO #${parsedDaoId.toString()}`
+      : "DAO detail";
+
+  const marketAddress = resolvedInfo ? getAddress(resolvedInfo.market) : undefined;
+
+  const selectedProposal = useMemo(() => {
+    if (parsedProposalId === undefined) {
+      return undefined;
+    }
+
+    return proposalFeed.find((item) => item.proposalId === parsedProposalId);
+  }, [parsedProposalId, proposalFeed]);
+
+  const selectedState =
+    parsedProposalId === undefined ? undefined : proposalStates[parsedProposalId.toString()] ?? state;
 
   if (!daoAddress) {
     return (
@@ -85,23 +267,33 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
     );
   }
 
-  const marketAddress = info ? getAddress(info.market) : undefined;
-
   return (
     <main className="space-y-4">
       <Breadcrumbs
         items={[
           { label: "Home", href: "/" },
           { label: "My DAOs", href: "/my-daos" },
-          { label: "DAO detail" },
+          { label: daoLabel },
         ]}
         backHref="/my-daos"
         backLabel="Back to My DAOs"
       />
-      <h2 className="text-2xl font-semibold">DAO Detail</h2>
-      <p className="rounded-md border border-white/40 bg-white/60 px-3 py-2 text-xs shadow-glass">
-        DAO address: {daoAddress}
-      </p>
+      <h2 className="text-2xl font-semibold">{daoLabel}</h2>
+
+      <section className="grid gap-2 rounded-lg border border-white/40 bg-white/60 p-4 text-xs shadow-glass backdrop-blur-md md:grid-cols-2">
+        <p>
+          <span className="font-semibold">DAO address:</span> {daoAddress}
+        </p>
+        <p>
+          <span className="font-semibold">DAO id:</span> {resolvedInfo ? resolvedInfo.id.toString() : "unresolved"}
+        </p>
+        <p>
+          <span className="font-semibold">Token:</span> {resolvedInfo ? `${resolvedInfo.tokenName} (${resolvedInfo.symbol})` : "unresolved"}
+        </p>
+        <p>
+          <span className="font-semibold">Market:</span> {marketAddress ?? "unresolved"}
+        </p>
+      </section>
 
       {marketAddress ? (
         <CreateProposalModal daoAddress={daoAddress} marketAddress={marketAddress} />
@@ -110,16 +302,37 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
       <section className="rounded-lg border border-white/40 bg-white/60 p-4 shadow-glass backdrop-blur-md">
         <h3 className="mb-3 text-lg font-semibold">Vote on Proposal</h3>
         <div className="grid gap-3">
+          {proposalFeed.length > 0 ? (
+            <select
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={proposalId}
+              onChange={(event) => setProposalId(event.target.value)}
+            >
+              <option value="">Select discovered proposal</option>
+              {proposalFeed.map((proposal) => {
+                const value = proposal.proposalId.toString();
+                const currentState = proposalStates[value];
+                return (
+                  <option key={value} value={value}>
+                    #{value} - {proposal.description || "Untitled proposal"} (state {String(currentState ?? "-")})
+                  </option>
+                );
+              })}
+            </select>
+          ) : null}
           <input
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             value={proposalId}
             onChange={(event) => setProposalId(event.target.value)}
-            placeholder="Proposal ID"
+            placeholder="Proposal ID (manual fallback)"
           />
+          {proposalLoadError ? (
+            <p className="text-xs text-red-600">Could not load proposal feed: {proposalLoadError}</p>
+          ) : null}
           {parsedProposalId === undefined ? (
             <EmptyState
               title="No proposal selected"
-              description="Enter a proposal ID to view status and cast a vote, or create a new proposal."
+              description="Select a discovered proposal or enter an ID manually to view status and cast a vote."
               {...(marketAddress
                 ? { cta: { href: `/tokens/${marketAddress}`, label: "Open market" } }
                 : {})}
@@ -127,8 +340,15 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
           ) : (
             <>
               <p className="text-xs text-slate-500">
-                Current proposal state: {String(state ?? "no proposal activity yet")}
+                Current proposal state: {String(selectedState ?? "no proposal activity yet")}
               </p>
+              {selectedProposal ? (
+                <>
+                  <p className="text-xs text-slate-500">Proposer: {selectedProposal.proposer}</p>
+                  <p className="text-xs text-slate-500">Voting start: {selectedProposal.voteStart.toString()}</p>
+                  <p className="text-xs text-slate-500">Voting end: {selectedProposal.voteEnd.toString()}</p>
+                </>
+              ) : null}
               <button
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
                 disabled={isPending}

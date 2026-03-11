@@ -58,4 +58,31 @@ export const daoFactoryAbi = [
       },
     ],
   },
+  {
+    type: "function",
+    name: "listDAOs",
+    stateMutability: "view",
+    inputs: [
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    outputs: [
+      {
+        name: "items",
+        type: "tuple[]",
+        components: [
+          { name: "id", type: "uint256" },
+          { name: "name", type: "string" },
+          { name: "tokenName", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "creator", type: "address" },
+          { name: "token", type: "address" },
+          { name: "dao", type: "address" },
+          { name: "market", type: "address" },
+          { name: "timelock", type: "address" },
+          { name: "createdAt", type: "uint256" },
+        ],
+      },
+    ],
+  },
 ] as const;
