@@ -22,10 +22,27 @@ export const daoTokenMarketAbi = [
   },
   {
     type: "function",
+    name: "quoteSell",
+    stateMutability: "view",
+    inputs: [{ name: "tokenAmount", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "buy",
     stateMutability: "payable",
     inputs: [{ name: "minTokensOut", type: "uint256" }],
     outputs: [{ name: "tokensOut", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "sell",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenAmount", type: "uint256" },
+      { name: "minEthOut", type: "uint256" },
+    ],
+    outputs: [{ name: "ethOut", type: "uint256" }],
   },
   {
     type: "function",
