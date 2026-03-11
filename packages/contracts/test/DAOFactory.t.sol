@@ -14,6 +14,16 @@ contract DAOFactoryTest is Test {
     }
 
     function testCreateDAO() public {
+        DAOFactory.PredictedAddresses memory predicted = factory.predictAddresses(
+            address(this),
+            "Alpha DAO",
+            "ALPHA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+
         uint256 id = factory.createDAO("Alpha DAO", "ALPHA", 1_000, 0.0001 ether, 0.00001 ether, 4);
 
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
@@ -23,6 +33,10 @@ contract DAOFactoryTest is Test {
         assertTrue(info.dao != address(0));
         assertTrue(info.market != address(0));
         assertTrue(info.timelock != address(0));
+        assertEq(info.token, predicted.token);
+        assertEq(info.dao, predicted.dao);
+        assertEq(info.market, predicted.market);
+        assertEq(info.timelock, predicted.timelock);
 
         DAOGovernanceToken token = DAOGovernanceToken(info.token);
         DAOTokenMarket market = DAOTokenMarket(payable(info.market));
