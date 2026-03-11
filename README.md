@@ -66,9 +66,14 @@ Create `packages/web/.env.local`:
 
 ```bash
 NEXT_PUBLIC_DAO_FACTORY_ADDRESS=0xYourFactoryAddress
-NEXT_PUBLIC_CHAIN_ID=31337
+NEXT_PUBLIC_CHAIN_ID=11155111
+NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your-key
 NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8545
 ```
+
+Use `NEXT_PUBLIC_CHAIN_ID=31337` during local development with Anvil.
+The wallet connect controls in the app header require wagmi RPC configuration,
+so keep `NEXT_PUBLIC_SEPOLIA_RPC_URL` set when targeting Sepolia.
 
 Run the app:
 

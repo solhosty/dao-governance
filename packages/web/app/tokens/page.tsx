@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import { useReadContract } from "wagmi";
 
+import { Breadcrumbs } from "@/components/navigation/breadcrumbs";
+import { EmptyState } from "@/components/ui/empty-state";
 import { daoFactoryAbi } from "@/lib/abi/daoFactory";
 import { DAO_FACTORY_ADDRESS } from "@/lib/contracts";
 
@@ -50,13 +52,37 @@ export default function TokensPage() {
   });
 
   if (!DAO_FACTORY_ADDRESS) {
-    return <p>Set NEXT_PUBLIC_DAO_FACTORY_ADDRESS to view token markets.</p>;
+    return (
+      <main className="space-y-4">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Tokens" }]} backHref="/" />
+        <EmptyState
+          title="Factory address not configured"
+          description="Set NEXT_PUBLIC_DAO_FACTORY_ADDRESS to view token markets."
+          cta={{ href: "/", label: "Go to Home" }}
+        />
+      </main>
+    );
   }
 
   const totalDaos = Number(total ?? 0n);
 
+  if (totalDaos === 0) {
+    return (
+      <main className="space-y-4">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Tokens" }]} backHref="/" />
+        <h2 className="text-2xl font-semibold">Token Markets</h2>
+        <EmptyState
+          title="No token markets yet"
+          description="Create your first DAO to launch a market."
+          cta={{ href: "/", label: "Go to Home" }}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="space-y-4">
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Tokens" }]} backHref="/" />
       <h2 className="text-2xl font-semibold">Token Markets</h2>
       <div className="grid gap-3 md:grid-cols-2">
         {Array.from({ length: totalDaos }).map((_, index) => (

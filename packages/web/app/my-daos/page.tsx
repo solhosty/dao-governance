@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useAccount, useReadContract } from "wagmi";
 
+import { Breadcrumbs } from "@/components/navigation/breadcrumbs";
+import { EmptyState } from "@/components/ui/empty-state";
 import { daoFactoryAbi } from "@/lib/abi/daoFactory";
 import { DAO_FACTORY_ADDRESS } from "@/lib/contracts";
 
@@ -23,14 +25,54 @@ export default function MyDaosPage() {
   }, [total]);
 
   if (!DAO_FACTORY_ADDRESS) {
-    return <p>Set NEXT_PUBLIC_DAO_FACTORY_ADDRESS to load your DAO dashboard.</p>;
+    return (
+      <main className="space-y-4">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "My DAOs" }]} backHref="/" />
+        <EmptyState
+          title="Factory address not configured"
+          description="Set NEXT_PUBLIC_DAO_FACTORY_ADDRESS to load your DAO dashboard."
+          cta={{ href: "/", label: "Go to Home" }}
+        />
+      </main>
+    );
+  }
+
+  if (!address) {
+    return (
+      <main className="space-y-4">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "My DAOs" }]} backHref="/" />
+        <h2 className="text-2xl font-semibold">My DAOs</h2>
+        <EmptyState
+          title="Connect your wallet"
+          description="Use the wallet button in the header to discover DAOs connected to your account."
+          cta={{ href: "/tokens", label: "Browse token markets" }}
+          secondaryCta={{ href: "/", label: "Go to Home" }}
+        />
+      </main>
+    );
+  }
+
+  if (ids.length === 0) {
+    return (
+      <main className="space-y-4">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "My DAOs" }]} backHref="/" />
+        <h2 className="text-2xl font-semibold">My DAOs</h2>
+        <EmptyState
+          title="No DAOs found yet"
+          description="No DAOs are discoverable right now. Explore token markets or create a DAO from the home page."
+          cta={{ href: "/tokens", label: "Open token markets" }}
+          secondaryCta={{ href: "/", label: "Go to Home" }}
+        />
+      </main>
+    );
   }
 
   return (
     <main className="space-y-4">
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "My DAOs" }]} backHref="/" />
       <h2 className="text-2xl font-semibold">My DAOs</h2>
       <p className="text-sm text-slate-600">
-        Connected wallet: {address ?? "Connect wallet in your preferred connector"}
+        Connected wallet: {address}
       </p>
       <div className="grid gap-2">
         {ids.map((id) => (

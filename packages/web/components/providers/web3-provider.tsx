@@ -12,7 +12,7 @@ type Web3ProviderProps = {
 
 export function Web3Provider({ children }: Web3ProviderProps) {
   return (
-    <WagmiProvider config={wagmiConfig}>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
