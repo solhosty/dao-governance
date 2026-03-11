@@ -1,0 +1,88 @@
+export const daoFactoryAbi = [
+  {
+    type: "function",
+    name: "createDAO",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "daoName", type: "string" },
+      { name: "tokenName", type: "string" },
+      { name: "tokenSymbol", type: "string" },
+      { name: "initialSupply", type: "uint256" },
+      { name: "basePriceWei", type: "uint256" },
+      { name: "slopeWei", type: "uint256" },
+      { name: "quorumNumerator", type: "uint256" },
+    ],
+    outputs: [{ name: "daoId", type: "uint256" }],
+  },
+  {
+    type: "event",
+    name: "DAOCreated",
+    inputs: [
+      { name: "daoId", type: "uint256", indexed: true },
+      { name: "creator", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "dao", type: "address", indexed: false },
+      { name: "market", type: "address", indexed: false },
+      { name: "timelock", type: "address", indexed: false },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "function",
+    name: "totalDAOs",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "getDAO",
+    stateMutability: "view",
+    inputs: [{ name: "daoId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "id", type: "uint256" },
+          { name: "name", type: "string" },
+          { name: "tokenName", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "creator", type: "address" },
+          { name: "token", type: "address" },
+          { name: "dao", type: "address" },
+          { name: "market", type: "address" },
+          { name: "timelock", type: "address" },
+          { name: "createdAt", type: "uint256" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "listDAOs",
+    stateMutability: "view",
+    inputs: [
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    outputs: [
+      {
+        name: "items",
+        type: "tuple[]",
+        components: [
+          { name: "id", type: "uint256" },
+          { name: "name", type: "string" },
+          { name: "tokenName", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "creator", type: "address" },
+          { name: "token", type: "address" },
+          { name: "dao", type: "address" },
+          { name: "market", type: "address" },
+          { name: "timelock", type: "address" },
+          { name: "createdAt", type: "uint256" },
+        ],
+      },
+    ],
+  },
+] as const;

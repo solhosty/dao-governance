@@ -1,0 +1,13 @@
+{
+  "name": "dao-governance-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.6.2",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "test:contracts": "pnpm --filter contracts test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.8.2"
+  }
+}

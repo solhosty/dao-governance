@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 33% 98%;
+  --foreground: 222 47% 12%;
+  --muted: 215 20% 92%;
+  --card: 0 0% 100%;
+  --primary: 220 85% 56%;
+  --accent: 28 95% 60%;
+}
+
+.dark {
+  --background: 220 25% 10%;
+  --foreground: 210 40% 96%;
+  --muted: 223 15% 24%;
+  --card: 224 18% 13%;
+  --primary: 217 92% 66%;
+  --accent: 31 99% 60%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255, 189, 89, 0.25) 0, rgba(255, 189, 89, 0) 35%),
+    radial-gradient(circle at 88% 0%, rgba(64, 132, 255, 0.22) 0, rgba(64, 132, 255, 0) 38%),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+}
