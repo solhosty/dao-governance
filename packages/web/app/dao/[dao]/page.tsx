@@ -17,6 +17,36 @@ type DAOPageProps = {
   };
 };
 
+const MAX_LOG_BLOCK_RANGE = 10_000n;
+const MIN_LOG_BLOCK_RANGE = 625n;
+const RECENT_LOG_LOOKBACK = 120_000n;
+
+function isBlockRangeLimitError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes("block range") ||
+    message.includes("max range") ||
+    message.includes("range limit") ||
+    message.includes("query exceeds") ||
+    message.includes("response size exceeded") ||
+    message.includes("limited to") ||
+    message.includes("try with this block range")
+  );
+}
+
+function getProposalFeedErrorMessage(error: unknown): string {
+  if (isBlockRangeLimitError(error)) {
+    return "Recent proposal history is unavailable on this RPC endpoint due to Sepolia block-range limits. You can still enter a proposal ID manually, or switch to a higher-capacity RPC to load the feed.";
+  }
+
+  return "Proposal feed is temporarily unavailable. You can still enter a proposal ID manually and vote.";
+}
+
 export default function DaoDetailPage({ params }: DAOPageProps) {
   const [proposalId, setProposalId] = useState("");
   const [proposalFeed, setProposalFeed] = useState<
@@ -114,12 +144,47 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
       }
 
       try {
-        const logs = await publicClient.getLogs({
-          address: daoAddress,
-          event: getAbiItem({ abi: daoAbi, name: "ProposalCreated" }),
-          fromBlock: 0n,
-          toBlock: "latest",
-        });
+        const latestBlock = await publicClient.getBlockNumber();
+        const fromBlockWindow =
+          latestBlock > RECENT_LOG_LOOKBACK ? latestBlock - RECENT_LOG_LOOKBACK + 1n : 0n;
+
+        const logs = [] as Awaited<
+          ReturnType<typeof publicClient.getLogs<typeof daoAbi, "ProposalCreated">>
+        >;
+
+        let toBlock = latestBlock;
+        let rangeSize = MAX_LOG_BLOCK_RANGE;
+        let partialError: unknown = null;
+
+        while (toBlock >= fromBlockWindow) {
+          const fromBlockCandidate =
+            toBlock > fromBlockWindow + rangeSize - 1n ? toBlock - rangeSize + 1n : fromBlockWindow;
+
+          try {
+            const chunkLogs = await publicClient.getLogs({
+              address: daoAddress,
+              event: getAbiItem({ abi: daoAbi, name: "ProposalCreated" }),
+              fromBlock: fromBlockCandidate,
+              toBlock,
+            });
+
+            logs.push(...chunkLogs);
+
+            if (fromBlockCandidate === fromBlockWindow) {
+              break;
+            }
+
+            toBlock = fromBlockCandidate - 1n;
+          } catch (error) {
+            if (isBlockRangeLimitError(error) && rangeSize > MIN_LOG_BLOCK_RANGE) {
+              rangeSize = rangeSize / 2n;
+              continue;
+            }
+
+            partialError = error;
+            break;
+          }
+        }
 
         if (cancelled) {
           return;
@@ -153,11 +218,15 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
           .sort((a, b) => Number(b.blockNumber - a.blockNumber));
 
         setProposalFeed(feed);
-        setProposalLoadError(null);
+        setProposalLoadError(partialError ? getProposalFeedErrorMessage(partialError) : null);
+
+        if (feed.length === 0 && partialError) {
+          setProposalFeed([]);
+        }
       } catch (error) {
         if (!cancelled) {
           setProposalFeed([]);
-          setProposalLoadError(error instanceof Error ? error.message : "Unable to load proposals");
+          setProposalLoadError(getProposalFeedErrorMessage(error));
         }
       }
     }
@@ -327,7 +396,12 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
             placeholder="Proposal ID (manual fallback)"
           />
           {proposalLoadError ? (
-            <p className="text-xs text-red-600">Could not load proposal feed: {proposalLoadError}</p>
+            <p className="text-xs text-amber-700">{proposalLoadError}</p>
+          ) : null}
+          {!proposalLoadError && proposalFeed.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              No recent proposals were found in the latest Sepolia blocks. Enter a proposal ID manually to continue.
+            </p>
           ) : null}
           {parsedProposalId === undefined ? (
             <EmptyState
