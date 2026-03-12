@@ -83,6 +83,7 @@ contract DAOFactory is Ownable {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
+        require(initialSupply > 0, "initial-supply-zero");
         require(quorumNumerator > 0 && quorumNumerator <= 100, "bad-quorum");
 
         daoId = daos.length;
@@ -108,15 +109,27 @@ contract DAOFactory is Ownable {
         );
         DAOGovernanceToken token = DAOGovernanceToken(tokenAddress);
 
-        if (initialSupply > 0) {
-            require(token.transfer(msg.sender, initialSupply * TOKEN_UNIT), "initial-transfer-failed");
-        }
+        require(token.transfer(msg.sender, initialSupply * TOKEN_UNIT), "initial-transfer-failed");
+
+        address predictedTimelockAddress = governorPredictor.predictTimelock(
+            address(governorPredictor),
+            timelockSalt,
+            address(this)
+        );
+        address predictedMarketAddress = marketDeployer.predict(
+            marketSalt,
+            token,
+            predictedTimelockAddress,
+            basePriceWei,
+            slopeWei
+        );
 
         (address daoAddress, address timelockAddress) = governorDeployer.deploy(
             timelockSalt,
             daoSalt,
             string.concat(daoName, " Governor"),
             IVotes(tokenAddress),
+            predictedMarketAddress,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
             quorumNumerator,
@@ -201,22 +214,23 @@ contract DAOFactory is Ownable {
             address(this)
         );
 
-        predicted.dao = governorDeployer.predictDAO(
-            daoSalt,
-            string.concat(daoName, " Governor"),
-            IVotes(predicted.token),
-            predicted.timelock,
-            DEFAULT_VOTING_DELAY,
-            DEFAULT_VOTING_PERIOD,
-            quorumNumerator
-        );
-
         predicted.market = marketDeployer.predict(
             marketSalt,
             DAOGovernanceToken(predicted.token),
             predicted.timelock,
             basePriceWei,
             slopeWei
+        );
+
+        predicted.dao = governorDeployer.predictDAO(
+            daoSalt,
+            string.concat(daoName, " Governor"),
+            IVotes(predicted.token),
+            predicted.market,
+            predicted.timelock,
+            DEFAULT_VOTING_DELAY,
+            DEFAULT_VOTING_PERIOD,
+            quorumNumerator
         );
     }
 

@@ -93,4 +93,33 @@ contract DAOFlowTest is Test {
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
     }
+
+    function testQuorumExcludesMarketHeldVotes() public {
+        vm.deal(alice, 10 ether);
+
+        vm.prank(alice);
+        market.buy{value: 1 ether}(1);
+
+        token.delegate(address(this));
+        vm.prank(alice);
+        token.delegate(alice);
+
+        vm.startPrank(alice);
+        token.approve(address(market), type(uint256).max);
+        market.sell(1, 0);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1);
+        uint256 snapshot = block.timestamp - 1;
+
+        uint256 totalPastVotes = token.getPastTotalSupply(snapshot);
+        uint256 marketPastVotes = token.getPastVotes(address(market), snapshot);
+        uint256 numerator = dao.quorumNumerator(snapshot);
+        uint256 denominator = dao.quorumDenominator();
+
+        assertGt(marketPastVotes, 0);
+
+        uint256 expectedQuorum = ((totalPastVotes - marketPastVotes) * numerator) / denominator;
+        assertEq(dao.quorum(snapshot), expectedQuorum);
+    }
 }

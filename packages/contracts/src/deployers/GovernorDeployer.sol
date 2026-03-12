@@ -19,6 +19,7 @@ contract GovernorDeployer {
         bytes32 daoSalt,
         string memory governorName,
         IVotes token,
+        address market,
         uint48 votingDelaySeconds,
         uint32 votingPeriodSeconds,
         uint256 quorumNumerator,
@@ -29,6 +30,7 @@ contract GovernorDeployer {
         DAO deployedDAO = new DAO{salt: daoSalt}(
             governorName,
             token,
+            market,
             TimelockController(payable(timelock)),
             votingDelaySeconds,
             votingPeriodSeconds,
@@ -42,6 +44,7 @@ contract GovernorDeployer {
         bytes32 daoSalt,
         string memory governorName,
         IVotes token,
+        address market,
         address timelock,
         uint48 votingDelaySeconds,
         uint32 votingPeriodSeconds,
@@ -53,6 +56,7 @@ contract GovernorDeployer {
                 abi.encode(
                     governorName,
                     token,
+                    market,
                     TimelockController(payable(timelock)),
                     votingDelaySeconds,
                     votingPeriodSeconds,

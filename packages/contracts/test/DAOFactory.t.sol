@@ -74,4 +74,57 @@ contract DAOFactoryTest is Test {
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
     }
+
+    function testCreateDAORevertsWhenInitialSupplyZero() public {
+        vm.expectRevert("initial-supply-zero");
+        factory.createDAO(
+            "Zero DAO",
+            "Zero Governance Token",
+            "ZERO",
+            0,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+    }
+
+    function testQuoteBuyHasNoHardCap() public {
+        uint256 id = factory.createDAO(
+            "Capless DAO",
+            "Capless Governance Token",
+            "CAP",
+            1,
+            1,
+            0,
+            4
+        );
+
+        DAOFactory.DAOInfo memory info = factory.getDAO(id);
+        DAOTokenMarket market = DAOTokenMarket(payable(info.market));
+
+        uint256 quoted = market.quoteBuy(2_000_000_000);
+        assertEq(quoted, 2_000_000_000);
+    }
+
+    function testCirculatingSupplyIgnoresFractionalMarketBalance() public {
+        uint256 id = factory.createDAO(
+            "Fraction DAO",
+            "Fraction Governance Token",
+            "FRAC",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+
+        DAOFactory.DAOInfo memory info = factory.getDAO(id);
+        DAOGovernanceToken token = DAOGovernanceToken(info.token);
+        DAOTokenMarket market = DAOTokenMarket(payable(info.market));
+
+        assertEq(market.circulatingSupplyTokens(), 1_000);
+
+        token.transfer(address(market), 1);
+
+        assertEq(market.circulatingSupplyTokens(), 1_000);
+    }
 }

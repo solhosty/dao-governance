@@ -18,9 +18,12 @@ contract DAO is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
+    address public immutable market;
+
     constructor(
         string memory name_,
         IVotes token_,
+        address market_,
         TimelockController timelock_,
         uint48 votingDelaySeconds_,
         uint32 votingPeriodSeconds_,
@@ -31,7 +34,10 @@ contract DAO is
         GovernorVotes(token_)
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
-    {}
+    {
+        require(market_ != address(0), "market=0");
+        market = market_;
+    }
 
     function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.votingDelay();
@@ -47,7 +53,14 @@ contract DAO is
         override(Governor, GovernorVotesQuorumFraction)
         returns (uint256)
     {
-        return super.quorum(timepoint);
+        uint256 totalVotes = token().getPastTotalSupply(timepoint);
+        uint256 marketVotes = token().getPastVotes(market, timepoint);
+        if (marketVotes >= totalVotes) {
+            return 0;
+        }
+
+        uint256 effectiveSupply = totalVotes - marketVotes;
+        return (effectiveSupply * quorumNumerator(timepoint)) / quorumDenominator();
     }
 
     function proposalThreshold()

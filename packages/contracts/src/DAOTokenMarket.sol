@@ -27,6 +27,8 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         token = token_;
         basePriceWei = basePriceWei_;
         slopeWei = slopeWei_;
+
+        token_.delegate(address(this));
     }
 
     function setCurveParams(uint256 basePriceWei_, uint256 slopeWei_) external onlyOwner {
@@ -79,16 +81,13 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     function quoteBuy(uint256 ethAmount) public view returns (uint256) {
+        if (ethAmount < basePriceWei) {
+            return 0;
+        }
+
         uint256 supplyTokens = circulatingSupplyTokens();
         uint256 low = 0;
-        uint256 high = 1;
-
-        while (costForTokens(supplyTokens, high) <= ethAmount) {
-            high *= 2;
-            if (high > 1_000_000_000) {
-                break;
-            }
-        }
+        uint256 high = ethAmount / basePriceWei;
 
         while (low < high) {
             uint256 mid = (low + high + 1) / 2;
@@ -115,7 +114,8 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     function circulatingSupplyTokens() public view returns (uint256) {
         uint256 marketBalance = token.balanceOf(address(this));
-        return (token.totalSupply() - marketBalance) / 1e18;
+        uint256 circulatingBalance = token.totalSupply() - marketBalance;
+        return (circulatingBalance + 1e18 - 1) / 1e18;
     }
 
     function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {
