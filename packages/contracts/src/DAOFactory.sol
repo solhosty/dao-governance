@@ -79,7 +79,7 @@ contract DAOFactory is Ownable {
         uint256 basePriceWei,
         uint256 slopeWei,
         uint256 quorumNumerator
-    ) external returns (uint256 daoId) {
+    ) external onlyOwner returns (uint256 daoId) {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
@@ -141,8 +141,10 @@ contract DAOFactory is Ownable {
         bytes32 adminRole = timelock.DEFAULT_ADMIN_ROLE();
 
         timelock.grantRole(proposerRole, daoAddress);
+        timelock.grantRole(executorRole, daoAddress);
         timelock.grantRole(cancellerRole, daoAddress);
-        timelock.grantRole(executorRole, address(0));
+        // SECURITY: do not grant EXECUTOR_ROLE to address(0), which would allow
+        // anyone to execute queued timelock operations.
         timelock.revokeRole(adminRole, address(this));
 
         daos.push(

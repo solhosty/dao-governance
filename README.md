@@ -1,38 +1,64 @@
 # DAO Governance Monorepo
 
-Monorepo with:
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
+[![Foundry](https://img.shields.io/badge/Built%20with-Foundry-black)](https://book.getfoundry.sh/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-workspace-f69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
-- `packages/contracts`: Foundry contracts for DAO factory deployment, governance token voting,
-  governor lifecycle, timelock, and ETH bonding curve market
-- `packages/web`: Next.js 15 App Router frontend with wagmi + viem reads and writes
+Monorepo for deploying and operating DAO governance flows:
 
-## Workspace Layout
+- `packages/contracts`: Foundry contracts for DAO creation, governor + timelock governance, and token market mechanics
+- `packages/web`: Next.js App Router frontend for DAO discovery, market interactions, and governance actions
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Security Notes](#security-notes)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [Contracts](#contracts)
+- [Frontend](#frontend)
+- [Environment Variables](#environment-variables)
+- [Lifecycle Overview](#lifecycle-overview)
+
+## Architecture
+
+```text
+                +-----------------------+
+                |      DAOFactory       |
+                |  (Ownable creator)    |
+                +-----------+-----------+
+                            |
+            +---------------+----------------+
+            |               |                |
+            v               v                v
+   +----------------+  +-----------+  +------------------+
+   | Governance     |  | Timelock  |  | DAOTokenMarket   |
+   | DAO (Governor) |  | Controller|  | bonding curve    |
+   +--------+-------+  +-----+-----+  +---------+--------+
+            |                |                  |
+            +----------------+------------------+
+                             |
+                             v
+                   +----------------------+
+                   | DAOGovernanceToken   |
+                   | voting + delegation  |
+                   +----------------------+
 ```
-.
-├── packages/contracts
-│   ├── src
-│   │   ├── DAOFactory.sol
-│   │   ├── DAO.sol
-│   │   ├── DAOGovernanceToken.sol
-│   │   └── DAOTokenMarket.sol
-│   ├── script/Deploy.s.sol
-│   └── test
-│       ├── DAOFactory.t.sol
-│       └── DAOFlow.t.sol
-└── packages/web
-    ├── app
-    ├── components
-    └── lib
-```
+
+## Security Notes
+
+- `DAOFactory::createDAO` is restricted with `onlyOwner` to prevent unrestricted DAO spawning
+- `TimelockController::EXECUTOR_ROLE` is not granted to `address(0)`; this avoids open execution of queued timelock transactions by arbitrary callers
+- Governance role wiring keeps `PROPOSER_ROLE` and `CANCELLER_ROLE` on the DAO governor, with factory admin rights revoked after setup
 
 ## Prerequisites
 
 - Node.js 22+
-- pnpm (enabled via corepack)
+- pnpm via Corepack
 - Foundry (`forge`)
 
-## Install
+## Getting Started
 
 ```bash
 corepack enable
@@ -42,7 +68,7 @@ pnpm install
 
 ## Contracts
 
-Install dependencies and run checks:
+Install Solidity dependencies and run verification:
 
 ```bash
 cd packages/contracts
@@ -51,7 +77,7 @@ cd packages/contracts
 ~/.foundry/bin/forge test
 ```
 
-Deploy factory contract:
+Deploy the factory:
 
 ```bash
 cd packages/contracts
@@ -62,7 +88,25 @@ PRIVATE_KEY=<your_key> ~/.foundry/bin/forge script script/Deploy.s.sol:Deploy \
 
 ## Frontend
 
+Run the app:
+
+```bash
+pnpm --filter web dev
+```
+
+## Environment Variables
+
 Create `packages/web/.env.local`:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `NEXT_PUBLIC_DAO_FACTORY_ADDRESS` | Yes | Deployed `DAOFactory` address |
+| `NEXT_PUBLIC_CHAIN_ID` | Yes | Active chain ID (`31337` local, `11155111` Sepolia) |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Yes | WalletConnect project ID for RainbowKit |
+| `NEXT_PUBLIC_SEPOLIA_RPC_URL` | Yes (Sepolia) | RPC endpoint for Sepolia |
+| `NEXT_PUBLIC_LOCAL_RPC_URL` | Yes (local) | RPC endpoint for local Anvil |
+
+Example:
 
 ```bash
 NEXT_PUBLIC_DAO_FACTORY_ADDRESS=0xYourFactoryAddress
@@ -72,22 +116,12 @@ NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your-key
 NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8545
 ```
 
-Use `NEXT_PUBLIC_CHAIN_ID=31337` during local development with Anvil.
-RainbowKit requires `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` for WalletConnect,
-and `NEXT_PUBLIC_SEPOLIA_RPC_URL` should stay configured when targeting Sepolia.
-
-Run the app:
-
-```bash
-pnpm --filter web dev
-```
-
-## End-to-End Flow
+## Lifecycle Overview
 
 1. Deploy `DAOFactory`
-2. Call `createDAO(daoName, tokenName, tokenSymbol, initialSupply, ...)` from any EOA
-3. Open `/tokens` to discover created DAO markets
-4. Buy governance tokens from `/tokens/[marketAddress]`
-5. Delegate votes with token contract
-6. Create proposal in `/dao/[daoAddress or id]`
-7. Vote, queue after voting period, and execute after timelock delay
+2. Owner calls `createDAO(daoName, tokenName, tokenSymbol, initialSupply, ...)`
+3. Discover active markets at `/tokens`
+4. Buy governance tokens at `/tokens/[marketAddress]`
+5. Delegate voting power on the token contract
+6. Create proposals at `/dao/[daoAddress or id]`
+7. Vote, queue via timelock, and execute after delay
