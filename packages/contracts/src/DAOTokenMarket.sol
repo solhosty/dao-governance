@@ -5,15 +5,21 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
 
+interface IPriceOracle {
+    function priceWei() external view returns (uint256);
+}
+
 contract DAOTokenMarket is Ownable, ReentrancyGuard {
     DAOGovernanceToken public immutable token;
 
     uint256 public basePriceWei;
     uint256 public slopeWei;
+    address public priceOracle;
 
     event TokensPurchased(address indexed buyer, uint256 ethSpent, uint256 tokensMinted);
     event TokensSold(address indexed seller, uint256 tokensSold, uint256 ethReceived);
     event CurveParamsUpdated(uint256 basePriceWei, uint256 slopeWei);
+    event PriceOracleUpdated(address indexed oracle);
 
     constructor(
         DAOGovernanceToken token_,
@@ -34,6 +40,11 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         basePriceWei = basePriceWei_;
         slopeWei = slopeWei_;
         emit CurveParamsUpdated(basePriceWei_, slopeWei_);
+    }
+
+    function setPriceOracle(address oracle_) external onlyOwner {
+        priceOracle = oracle_;
+        emit PriceOracleUpdated(oracle_);
     }
 
     function buy(uint256 minTokensOut) external payable nonReentrant returns (uint256 tokensOut) {
@@ -64,8 +75,14 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         require(tokensOut > 0, "insufficient-value");
         require(tokensOut >= minTokensOut, "slippage");
 
-        uint256 supplyTokens = circulatingSupplyTokens();
-        uint256 spent = costForTokens(supplyTokens, tokensOut);
+        uint256 spent;
+        uint256 oraclePrice = _oraclePriceWei();
+        if (oraclePrice > 0) {
+            spent = tokensOut * oraclePrice;
+        } else {
+            uint256 supplyTokens = circulatingSupplyTokens();
+            spent = costForTokens(supplyTokens, tokensOut);
+        }
         uint256 refund = payment - spent;
 
         token.mint(buyer, tokensOut);
@@ -79,6 +96,11 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     function quoteBuy(uint256 ethAmount) public view returns (uint256) {
+        uint256 oraclePrice = _oraclePriceWei();
+        if (oraclePrice > 0) {
+            return ethAmount / oraclePrice;
+        }
+
         uint256 supplyTokens = circulatingSupplyTokens();
         uint256 low = 0;
         uint256 high = 1;
@@ -104,6 +126,11 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     function quoteSell(uint256 tokenAmount) public view returns (uint256) {
         if (tokenAmount == 0) return 0;
+
+        uint256 oraclePrice = _oraclePriceWei();
+        if (oraclePrice > 0) {
+            return tokenAmount * oraclePrice;
+        }
 
         uint256 supplyTokens = circulatingSupplyTokens();
         if (tokenAmount > supplyTokens) {
@@ -133,6 +160,15 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         if (tokensToSell == 0 || tokensToSell > currentSupplyTokens) return 0;
         uint256 startingSupply = currentSupplyTokens - tokensToSell;
         return costForTokens(startingSupply, tokensToSell);
+    }
+
+    function _oraclePriceWei() internal view returns (uint256) {
+        address oracle = priceOracle;
+        if (oracle == address(0)) {
+            return 0;
+        }
+
+        return IPriceOracle(oracle).priceWei();
     }
 
     receive() external payable {
