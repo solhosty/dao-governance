@@ -12,20 +12,3 @@ packages/contracts/lib/
 packages/contracts/out/
 packages/contracts/cache/
 broadcast/
-
-# Auto-added by Cygent
-.next/
-out/
-build/
-.turbo/
-.vercel/
-.env.*
-!.env.example
-!.env.template
-coverage/
-.nyc_output/
-*.tsbuildinfo
-.cache/
-cache/
-artifacts/
-typechain-types/
