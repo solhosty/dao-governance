@@ -6,6 +6,7 @@ import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAO} from "../src/DAO.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
 import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
 import {GovernorPredictor} from "../src/deployers/GovernorPredictor.sol";
@@ -92,5 +93,55 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testRandomAddressCannotExecuteTimelockOperation() public {
+        address attacker = address(0xBEEF);
+        DAOFactory.DAOInfo memory info = factory.getDAO(0);
+        TimelockController timelock = TimelockController(payable(info.timelock));
+
+        // Delegate tokens so votes are active
+        token.delegate(address(this));
+        vm.prank(alice);
+        vm.deal(alice, 10 ether);
+        uint256 bought = market.buy{value: 1 ether}(1);
+        assertGt(bought, 0);
+        vm.prank(alice);
+        token.delegate(alice);
+
+        // Propose a governance action through the governor
+        uint256 newBase = 0.0003 ether;
+        uint256 newSlope = 0.00003 ether;
+        bytes memory callData = abi.encodeCall(DAOTokenMarket.setCurveParams, (newBase, newSlope));
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(market);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = callData;
+
+        string memory description = "Attacker test proposal";
+        uint256 proposalId = dao.propose(targets, values, calldatas, description);
+
+        // Vote
+        vm.warp(block.timestamp + dao.votingDelay() + 1);
+        dao.castVote(proposalId, 1);
+        vm.prank(alice);
+        dao.castVote(proposalId, 1);
+
+        // Queue
+        vm.warp(block.timestamp + dao.votingPeriod() + 1);
+        bytes32 descriptionHash = keccak256(bytes(description));
+        dao.queue(targets, values, calldatas, descriptionHash);
+
+        // Wait for timelock delay
+        vm.warp(block.timestamp + 1 hours + 1);
+
+        // Attacker tries to execute directly on the timelock (bypassing governor)
+        bytes32 timelockSalt = bytes20(address(dao)) ^ descriptionHash;
+        vm.prank(attacker);
+        vm.expectRevert();
+        timelock.executeBatch(targets, values, calldatas, 0, timelockSalt);
     }
 }

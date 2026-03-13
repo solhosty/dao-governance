@@ -1,29 +1,52 @@
-# DAO Governance Monorepo
+# DAO Governance
 
-Monorepo with:
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
+[![Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C?logo=ethereum)](https://book.getfoundry.sh/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs)](https://nextjs.org/)
 
-- `packages/contracts`: Foundry contracts for DAO factory deployment, governance token voting,
-  governor lifecycle, timelock, and ETH bonding curve market
-- `packages/web`: Next.js 15 App Router frontend with wagmi + viem reads and writes
+A full-stack DAO factory that deploys governance bundles in a single transaction: an ERC-20 governance token, an ETH bonding-curve market, a Governor with configurable voting parameters, and a TimelockController. The Next.js frontend provides a complete interface for token trading, proposal creation, voting, and execution.
+
+## Architecture
+
+```
+createDAO()
+    │
+    ├── 1. DAOGovernanceToken (ERC-20 + ERC20Votes)
+    │
+    ├── 2. TimelockController (execution delay)
+    │       ├── PROPOSER_ROLE  → Governor
+    │       ├── CANCELLER_ROLE → Governor
+    │       └── EXECUTOR_ROLE  → Governor
+    │
+    ├── 3. DAO Governor (GovernorTimelockControl)
+    │       └── propose → vote → queue → execute
+    │
+    └── 4. DAOTokenMarket (ETH bonding curve)
+            └── buy / sell governance tokens
+```
+
+All timelock roles are scoped to the Governor contract. The factory renounces its admin role after setup, leaving the DAO fully self-governing.
 
 ## Workspace Layout
 
 ```
-.
-├── packages/contracts
-│   ├── src
+packages/
+├── contracts/           Foundry project
+│   ├── src/
 │   │   ├── DAOFactory.sol
 │   │   ├── DAO.sol
 │   │   ├── DAOGovernanceToken.sol
-│   │   └── DAOTokenMarket.sol
-│   ├── script/Deploy.s.sol
-│   └── test
-│       ├── DAOFactory.t.sol
-│       └── DAOFlow.t.sol
-└── packages/web
-    ├── app
-    ├── components
-    └── lib
+│   │   ├── DAOTokenMarket.sol
+│   │   └── deployers/
+│   ├── test/
+│   │   ├── DAOFactory.t.sol
+│   │   └── DAOFlow.t.sol
+│   └── script/
+│       └── Deploy.s.sol
+└── web/                 Next.js 15 App Router
+    ├── app/
+    ├── components/
+    └── lib/
 ```
 
 ## Prerequisites
@@ -32,7 +55,7 @@ Monorepo with:
 - pnpm (enabled via corepack)
 - Foundry (`forge`)
 
-## Install
+## Getting Started
 
 ```bash
 corepack enable
@@ -42,20 +65,19 @@ pnpm install
 
 ## Contracts
 
-Install dependencies and run checks:
+Build and test:
 
 ```bash
 cd packages/contracts
-~/.foundry/bin/forge install OpenZeppelin/openzeppelin-contracts foundry-rs/forge-std
-~/.foundry/bin/forge build
-~/.foundry/bin/forge test
+forge build
+forge test
 ```
 
-Deploy factory contract:
+Deploy the factory:
 
 ```bash
 cd packages/contracts
-PRIVATE_KEY=<your_key> ~/.foundry/bin/forge script script/Deploy.s.sol:Deploy \
+PRIVATE_KEY=<your_key> forge script script/Deploy.s.sol:Deploy \
   --rpc-url http://127.0.0.1:8545 \
   --broadcast
 ```
@@ -64,7 +86,7 @@ PRIVATE_KEY=<your_key> ~/.foundry/bin/forge script script/Deploy.s.sol:Deploy \
 
 Create `packages/web/.env.local`:
 
-```bash
+```env
 NEXT_PUBLIC_DAO_FACTORY_ADDRESS=0xYourFactoryAddress
 NEXT_PUBLIC_CHAIN_ID=11155111
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-walletconnect-project-id
@@ -72,9 +94,7 @@ NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your-key
 NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8545
 ```
 
-Use `NEXT_PUBLIC_CHAIN_ID=31337` during local development with Anvil.
-RainbowKit requires `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` for WalletConnect,
-and `NEXT_PUBLIC_SEPOLIA_RPC_URL` should stay configured when targeting Sepolia.
+Set `NEXT_PUBLIC_CHAIN_ID=31337` for local Anvil development.
 
 Run the app:
 
@@ -84,10 +104,10 @@ pnpm --filter web dev
 
 ## End-to-End Flow
 
-1. Deploy `DAOFactory`
+1. Deploy `DAOFactory` via the deploy script
 2. Call `createDAO(daoName, tokenName, tokenSymbol, initialSupply, ...)` from any EOA
-3. Open `/tokens` to discover created DAO markets
+3. Browse created DAO markets at `/tokens`
 4. Buy governance tokens from `/tokens/[marketAddress]`
-5. Delegate votes with token contract
-6. Create proposal in `/dao/[daoAddress or id]`
-7. Vote, queue after voting period, and execute after timelock delay
+5. Delegate voting power on the token contract
+6. Create a proposal in `/dao/[daoAddress or id]`
+7. Vote, queue after the voting period, and execute after the timelock delay
