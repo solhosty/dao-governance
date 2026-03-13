@@ -142,7 +142,7 @@ contract DAOFactory is Ownable {
 
         timelock.grantRole(proposerRole, daoAddress);
         timelock.grantRole(cancellerRole, daoAddress);
-        timelock.grantRole(executorRole, address(0));
+        timelock.grantRole(executorRole, daoAddress);
         timelock.revokeRole(adminRole, address(this));
 
         daos.push(

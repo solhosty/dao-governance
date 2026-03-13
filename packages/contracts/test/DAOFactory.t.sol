@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
 import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
 import {GovernorPredictor} from "../src/deployers/GovernorPredictor.sol";
@@ -73,5 +74,36 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testTimelockRolesAfterCreation() public {
+        uint256 id = factory.createDAO(
+            "Roles DAO",
+            "Roles Token",
+            "ROLE",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+
+        DAOFactory.DAOInfo memory info = factory.getDAO(id);
+        TimelockController timelock = TimelockController(payable(info.timelock));
+
+        bytes32 executorRole = timelock.EXECUTOR_ROLE();
+        bytes32 proposerRole = timelock.PROPOSER_ROLE();
+        bytes32 cancellerRole = timelock.CANCELLER_ROLE();
+        bytes32 adminRole = timelock.DEFAULT_ADMIN_ROLE();
+
+        // EXECUTOR_ROLE is granted to the DAO governor, not address(0)
+        assertTrue(timelock.hasRole(executorRole, info.dao), "dao should have executor role");
+        assertFalse(timelock.hasRole(executorRole, address(0)), "address(0) should not have executor role");
+
+        // Proposer and canceller roles belong to the DAO governor
+        assertTrue(timelock.hasRole(proposerRole, info.dao), "dao should have proposer role");
+        assertTrue(timelock.hasRole(cancellerRole, info.dao), "dao should have canceller role");
+
+        // Factory no longer holds DEFAULT_ADMIN_ROLE on the timelock
+        assertFalse(timelock.hasRole(adminRole, address(factory)), "factory should not have admin role");
     }
 }
