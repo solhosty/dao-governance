@@ -115,7 +115,14 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     function circulatingSupplyTokens() public view returns (uint256) {
         uint256 marketBalance = token.balanceOf(address(this));
-        return (token.totalSupply() - marketBalance) / 1e18;
+        uint256 circulatingRaw = token.totalSupply() - marketBalance;
+        uint256 circulatingWhole = circulatingRaw / 1e18;
+
+        if (circulatingRaw % 1e18 != 0) {
+            circulatingWhole += 1;
+        }
+
+        return circulatingWhole;
     }
 
     function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {

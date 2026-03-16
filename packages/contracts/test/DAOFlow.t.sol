@@ -93,4 +93,14 @@ contract DAOFlowTest is Test {
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
     }
+
+    function testCirculatingSupplyRoundsUpAfterFractionalDonation() public {
+        uint256 expectedSupplyTokens = token.totalSupply() / token.TOKEN_UNIT();
+        assertEq(market.circulatingSupplyTokens(), expectedSupplyTokens);
+
+        bool transferred = token.transfer(address(market), 1);
+        assertTrue(transferred);
+
+        assertEq(market.circulatingSupplyTokens(), expectedSupplyTokens);
+    }
 }

@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
@@ -73,5 +75,40 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testCreateDAORevertsForNonOwner() public {
+        address attacker = address(0xBEEF);
+
+        vm.prank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
+        factory.createDAO(
+            "Alpha DAO",
+            "Alpha Governance Token",
+            "ALPHA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+    }
+
+    function testCreateDAORestrictsExecutorRoleToDAO() public {
+        uint256 id = factory.createDAO(
+            "Alpha DAO",
+            "Alpha Governance Token",
+            "ALPHA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
+
+        DAOFactory.DAOInfo memory info = factory.getDAO(id);
+        TimelockController timelock = TimelockController(payable(info.timelock));
+        bytes32 executorRole = timelock.EXECUTOR_ROLE();
+
+        assertFalse(timelock.hasRole(executorRole, address(0)));
+        assertTrue(timelock.hasRole(executorRole, info.dao));
     }
 }
