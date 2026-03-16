@@ -79,7 +79,7 @@ contract DAOFactory is Ownable {
         uint256 basePriceWei,
         uint256 slopeWei,
         uint256 quorumNumerator
-    ) external returns (uint256 daoId) {
+    ) external onlyOwner returns (uint256 daoId) {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
@@ -142,7 +142,7 @@ contract DAOFactory is Ownable {
 
         timelock.grantRole(proposerRole, daoAddress);
         timelock.grantRole(cancellerRole, daoAddress);
-        timelock.grantRole(executorRole, address(0));
+        timelock.grantRole(executorRole, daoAddress);
         timelock.revokeRole(adminRole, address(this));
 
         daos.push(

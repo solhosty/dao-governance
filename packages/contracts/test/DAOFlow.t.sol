@@ -52,6 +52,12 @@ contract DAOFlowTest is Test {
     function testFullGovernanceFlow() public {
         vm.deal(alice, 10 ether);
 
+        bytes32 buyCommitment = market.tradeCommitment(alice, true, 1 ether, 1, bytes32(0));
+        vm.prank(alice);
+        market.commitTrade(buyCommitment);
+
+        vm.roll(block.number + market.MIN_COMMIT_BLOCKS());
+
         vm.prank(alice);
         uint256 bought = market.buy{value: 1 ether}(1);
         assertGt(bought, 0);
@@ -92,5 +98,35 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testQueueRejectsDuplicateOperations() public {
+        token.delegate(address(this));
+
+        bytes memory callData = abi.encodeCall(DAOTokenMarket.setCurveParams, (0.0002 ether, 0.00002 ether));
+
+        address[] memory targets = new address[](2);
+        targets[0] = address(market);
+        targets[1] = address(market);
+
+        uint256[] memory values = new uint256[](2);
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes[] memory calldatas = new bytes[](2);
+        calldatas[0] = callData;
+        calldatas[1] = callData;
+
+        string memory description = "Duplicate market update operations";
+        uint256 proposalId = dao.propose(targets, values, calldatas, description);
+
+        vm.warp(block.timestamp + dao.votingDelay() + 1);
+        dao.castVote(proposalId, 1);
+
+        vm.warp(block.timestamp + dao.votingPeriod() + 1);
+
+        bytes32 descriptionHash = keccak256(bytes(description));
+        vm.expectRevert("duplicate-operation");
+        dao.queue(targets, values, calldatas, descriptionHash);
     }
 }

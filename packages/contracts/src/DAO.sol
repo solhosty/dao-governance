@@ -78,6 +78,18 @@ contract DAO is
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
+        uint256 length = targets.length;
+        require(length == values.length && length == calldatas.length, "length-mismatch");
+
+        for (uint256 i = 0; i < length; i++) {
+            bytes32 operationHashI = keccak256(abi.encode(targets[i], values[i], calldatas[i]));
+
+            for (uint256 j = i + 1; j < length; j++) {
+                bytes32 operationHashJ = keccak256(abi.encode(targets[j], values[j], calldatas[j]));
+                require(operationHashI != operationHashJ, "duplicate-operation");
+            }
+        }
+
         return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
@@ -73,5 +74,24 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+
+        TimelockController timelock = TimelockController(payable(info.timelock));
+        bytes32 executorRole = timelock.EXECUTOR_ROLE();
+        assertTrue(timelock.hasRole(executorRole, info.dao));
+        assertFalse(timelock.hasRole(executorRole, address(0)));
+    }
+
+    function testCreateDAOOnlyOwner() public {
+        vm.expectRevert();
+        vm.prank(address(0xBEEF));
+        factory.createDAO(
+            "Beta DAO",
+            "Beta Governance Token",
+            "BETA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4
+        );
     }
 }
