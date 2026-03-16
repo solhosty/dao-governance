@@ -12,11 +12,13 @@ import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFactoryTest is Test {
     DAOFactory internal factory;
+    GovernorPredictor internal governorPredictor;
 
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
+        governorPredictor = new GovernorPredictor(address(this));
         GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        governorPredictor.transferOwnership(address(governorDeployer));
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
@@ -26,6 +28,19 @@ contract DAOFactoryTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+    }
+
+    function testGovernorPredictorRejectsNonOwnerTimelockDeployment() public {
+        bytes32 timelockSalt = keccak256("salt");
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        governorPredictor.deployTimelock(timelockSalt, address(this));
+    }
+
+    function testGovernorPredictorRejectsZeroAdminPrediction() public {
+        bytes32 timelockSalt = keccak256("salt");
+        vm.expectRevert("admin=0");
+        governorPredictor.predictTimelock(address(this), timelockSalt, address(0));
     }
 
     function testCreateDAO() public {

@@ -10,10 +10,27 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     uint256 public basePriceWei;
     uint256 public slopeWei;
+    uint256 public constant REVEAL_DELAY = 2 minutes;
+    uint256 public constant REVEAL_WINDOW = 30 minutes;
+
+    bytes32 private constant ACTION_BUY = keccak256("BUY");
+    bytes32 private constant ACTION_SELL = keccak256("SELL");
+
+    struct Commitment {
+        address user;
+        bytes32 actionHash;
+        uint256 commitTime;
+        bool revealed;
+    }
+
+    mapping(bytes32 => Commitment) public commitments;
+    mapping(address => uint256) public nonces;
 
     event TokensPurchased(address indexed buyer, uint256 ethSpent, uint256 tokensMinted);
     event TokensSold(address indexed seller, uint256 tokensSold, uint256 ethReceived);
     event CurveParamsUpdated(uint256 basePriceWei, uint256 slopeWei);
+    event TradeCommitted(address indexed user, bytes32 indexed commitHash, bytes32 actionHash, uint256 nonce);
+    event TradeRevealed(address indexed user, bytes32 indexed commitHash, bytes32 actionHash);
 
     constructor(
         DAOGovernanceToken token_,
@@ -36,12 +53,64 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         emit CurveParamsUpdated(basePriceWei_, slopeWei_);
     }
 
-    function buy(uint256 minTokensOut) external payable nonReentrant returns (uint256 tokensOut) {
-        return _buy(msg.sender, msg.value, minTokensOut);
+    function buy(uint256 minTokensOut) external payable {
+        minTokensOut;
+        revert("use-commit-reveal");
     }
 
-    function sell(uint256 tokenAmount, uint256 minEthOut) external nonReentrant returns (uint256 ethOut) {
+    function sell(uint256 tokenAmount, uint256 minEthOut) external pure {
+        tokenAmount;
+        minEthOut;
+        revert("use-commit-reveal");
+    }
+
+    function commit(bytes32 actionHash) external returns (bytes32 commitHash) {
+        require(actionHash != bytes32(0), "action-hash=0");
+
+        uint256 nonce = nonces[msg.sender];
+        commitHash = keccak256(abi.encode(msg.sender, actionHash, nonce));
+
+        Commitment storage existing = commitments[commitHash];
+        require(existing.user == address(0), "commit-exists");
+
+        commitments[commitHash] = Commitment({
+            user: msg.sender,
+            actionHash: actionHash,
+            commitTime: block.timestamp,
+            revealed: false
+        });
+
+        nonces[msg.sender] = nonce + 1;
+        emit TradeCommitted(msg.sender, commitHash, actionHash, nonce);
+    }
+
+    function revealBuy(
+        uint256 minTokensOut,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 commitHash
+    ) external payable nonReentrant returns (uint256 tokensOut) {
+        require(block.timestamp <= deadline, "expired");
+
+        bytes32 actionHash = getBuyActionHash(msg.value, minTokensOut, nonce, deadline);
+        _consumeCommitment(commitHash, actionHash, nonce);
+
+        tokensOut = _buy(msg.sender, msg.value, minTokensOut);
+        emit TradeRevealed(msg.sender, commitHash, actionHash);
+    }
+
+    function revealSell(
+        uint256 tokenAmount,
+        uint256 minEthOut,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 commitHash
+    ) external nonReentrant returns (uint256 ethOut) {
+        require(block.timestamp <= deadline, "expired");
         require(tokenAmount > 0, "amount=0");
+
+        bytes32 actionHash = getSellActionHash(tokenAmount, minEthOut, nonce, deadline);
+        _consumeCommitment(commitHash, actionHash, nonce);
 
         ethOut = quoteSell(tokenAmount);
         require(ethOut >= minEthOut, "slippage");
@@ -55,6 +124,41 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         require(ok, "payout-failed");
 
         emit TokensSold(msg.sender, tokenAmount, ethOut);
+        emit TradeRevealed(msg.sender, commitHash, actionHash);
+    }
+
+    function getBuyActionHash(
+        uint256 payment,
+        uint256 minTokensOut,
+        uint256 nonce,
+        uint256 deadline
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode(ACTION_BUY, payment, minTokensOut, nonce, deadline));
+    }
+
+    function getSellActionHash(
+        uint256 tokenAmount,
+        uint256 minEthOut,
+        uint256 nonce,
+        uint256 deadline
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode(ACTION_SELL, tokenAmount, minEthOut, nonce, deadline));
+    }
+
+    function _consumeCommitment(bytes32 commitHash, bytes32 actionHash, uint256 nonce) internal {
+        bytes32 expectedCommitHash = keccak256(abi.encode(msg.sender, actionHash, nonce));
+        require(expectedCommitHash == commitHash, "commit-hash");
+
+        Commitment storage commitment = commitments[commitHash];
+        require(commitment.user == msg.sender, "commit-user");
+        require(commitment.actionHash == actionHash, "action-hash");
+        require(!commitment.revealed, "already-revealed");
+
+        uint256 earliestReveal = commitment.commitTime + REVEAL_DELAY;
+        require(block.timestamp >= earliestReveal, "reveal-too-early");
+        require(block.timestamp <= earliestReveal + REVEAL_WINDOW, "commit-expired");
+
+        commitment.revealed = true;
     }
 
     function _buy(address buyer, uint256 payment, uint256 minTokensOut) internal returns (uint256 tokensOut) {
@@ -136,6 +240,6 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     receive() external payable {
-        _buy(msg.sender, msg.value, 0);
+        revert("use-commit-reveal");
     }
 }

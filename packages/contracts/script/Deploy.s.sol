@@ -15,10 +15,22 @@ contract Deploy is Script {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPk);
+        try this._runInternal(deployerPk) returns (DAOFactory deployedFactory) {
+            factory = deployedFactory;
+            vm.stopBroadcast();
+        } catch {
+            vm.stopBroadcast();
+            revert("deployment-failed");
+        }
+    }
+
+    function _runInternal(uint256 deployerPk) external returns (DAOFactory factory) {
+        require(msg.sender == address(this), "only-self");
 
         TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
+        GovernorPredictor governorPredictor = new GovernorPredictor(vm.addr(deployerPk));
         GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        governorPredictor.transferOwnership(address(governorDeployer));
         MarketDeployer marketDeployer = new MarketDeployer();
 
         require(address(tokenDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "token-deployer-code-too-large");
@@ -37,7 +49,5 @@ contract Deploy is Script {
             address(marketDeployer)
         );
         require(address(factory).code.length <= MAX_RUNTIME_CODE_SIZE, "factory-code-too-large");
-
-        vm.stopBroadcast();
     }
 }

@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
-contract GovernorPredictor {
+contract GovernorPredictor is Ownable {
+    constructor(address initialOwner) Ownable(initialOwner) {}
+
     function deployTimelock(
         bytes32 timelockSalt,
         address timelockAdmin
-    ) external returns (address timelock) {
+    ) external onlyOwner returns (address timelock) {
+        require(timelockAdmin != address(0), "admin=0");
+
         address[] memory proposers = new address[](0);
         address[] memory executors = new address[](0);
 
@@ -20,6 +25,7 @@ contract GovernorPredictor {
         address timelockAdmin
     ) external pure returns (address timelock) {
         require(deployer != address(0), "deployer=0");
+        require(timelockAdmin != address(0), "admin=0");
 
         address[] memory proposers = new address[](0);
         address[] memory executors = new address[](0);

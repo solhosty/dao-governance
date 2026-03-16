@@ -21,8 +21,9 @@ contract DAOFlowTest is Test {
 
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
+        GovernorPredictor governorPredictor = new GovernorPredictor(address(this));
         GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        governorPredictor.transferOwnership(address(governorDeployer));
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
@@ -52,8 +53,17 @@ contract DAOFlowTest is Test {
     function testFullGovernanceFlow() public {
         vm.deal(alice, 10 ether);
 
+        uint256 buyNonce = market.nonces(alice);
+        uint256 buyDeadline = type(uint256).max;
+        bytes32 buyActionHash = market.getBuyActionHash(1 ether, 1, buyNonce, buyDeadline);
+
         vm.prank(alice);
-        uint256 bought = market.buy{value: 1 ether}(1);
+        bytes32 buyCommitHash = market.commit(buyActionHash);
+
+        vm.warp(block.timestamp + market.REVEAL_DELAY() + 1);
+
+        vm.prank(alice);
+        uint256 bought = market.revealBuy{value: 1 ether}(1, buyNonce, buyDeadline, buyCommitHash);
         assertGt(bought, 0);
 
         token.delegate(address(this));
@@ -92,5 +102,54 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testCommitRevealExpires() public {
+        vm.deal(alice, 2 ether);
+
+        uint256 buyNonce = market.nonces(alice);
+        uint256 buyDeadline = type(uint256).max;
+        bytes32 buyActionHash = market.getBuyActionHash(1 ether, 1, buyNonce, buyDeadline);
+
+        vm.prank(alice);
+        bytes32 buyCommitHash = market.commit(buyActionHash);
+
+        vm.warp(block.timestamp + market.REVEAL_DELAY() + market.REVEAL_WINDOW() + 1);
+
+        vm.prank(alice);
+        vm.expectRevert("commit-expired");
+        market.revealBuy{value: 1 ether}(1, buyNonce, buyDeadline, buyCommitHash);
+    }
+
+    function testRevealSellWithMismatchedHashReverts() public {
+        vm.deal(alice, 5 ether);
+
+        uint256 buyNonce = market.nonces(alice);
+        uint256 buyDeadline = type(uint256).max;
+        bytes32 buyActionHash = market.getBuyActionHash(1 ether, 1, buyNonce, buyDeadline);
+
+        vm.prank(alice);
+        bytes32 buyCommitHash = market.commit(buyActionHash);
+
+        vm.warp(block.timestamp + market.REVEAL_DELAY() + 1);
+
+        vm.prank(alice);
+        market.revealBuy{value: 1 ether}(1, buyNonce, buyDeadline, buyCommitHash);
+
+        vm.prank(alice);
+        token.approve(address(market), type(uint256).max);
+
+        uint256 sellNonce = market.nonces(alice);
+        uint256 sellDeadline = type(uint256).max;
+        bytes32 sellActionHash = market.getSellActionHash(1, 1, sellNonce, sellDeadline);
+
+        vm.prank(alice);
+        bytes32 sellCommitHash = market.commit(sellActionHash);
+
+        vm.warp(block.timestamp + market.REVEAL_DELAY() + 1);
+
+        vm.prank(alice);
+        vm.expectRevert("commit-hash");
+        market.revealSell(1, 2, sellNonce, sellDeadline, sellCommitHash);
     }
 }
