@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getAbiItem, getAddress } from "viem";
+import { getAbiItem, getAddress, parseEventLogs } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 
 import { CreateProposalModal } from "@/components/dao/create-proposal-modal";
@@ -148,9 +148,7 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
         const fromBlockWindow =
           latestBlock > RECENT_LOG_LOOKBACK ? latestBlock - RECENT_LOG_LOOKBACK + 1n : 0n;
 
-        const logs = [] as Awaited<
-          ReturnType<typeof publicClient.getLogs<typeof daoAbi, "ProposalCreated">>
-        >;
+        const logs = [] as Awaited<ReturnType<typeof publicClient.getLogs>>;
 
         let toBlock = latestBlock;
         let rangeSize = MAX_LOG_BLOCK_RANGE;
@@ -190,7 +188,13 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
           return;
         }
 
-        const feed = logs
+        const proposalLogs = parseEventLogs({
+          abi: daoAbi,
+          eventName: "ProposalCreated",
+          logs,
+        });
+
+        const feed = proposalLogs
           .map((log) => {
             const args = log.args;
 
