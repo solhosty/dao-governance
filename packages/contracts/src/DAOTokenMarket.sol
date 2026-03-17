@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { DAOGovernanceToken } from "./DAOGovernanceToken.sol";
 
 contract DAOTokenMarket is Ownable, ReentrancyGuard {
     DAOGovernanceToken public immutable token;
@@ -36,11 +36,15 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         emit CurveParamsUpdated(basePriceWei_, slopeWei_);
     }
 
-    function buy(uint256 minTokensOut) external payable nonReentrant returns (uint256 tokensOut) {
+    function buy(uint256 minTokensOut) public payable nonReentrant returns (uint256 tokensOut) {
         return _buy(msg.sender, msg.value, minTokensOut);
     }
 
-    function sell(uint256 tokenAmount, uint256 minEthOut) external nonReentrant returns (uint256 ethOut) {
+    function sell(uint256 tokenAmount, uint256 minEthOut)
+        external
+        nonReentrant
+        returns (uint256 ethOut)
+    {
         require(tokenAmount > 0, "amount=0");
 
         ethOut = quoteSell(tokenAmount);
@@ -51,13 +55,16 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         bool transferred = token.transferFrom(msg.sender, address(this), tokenAmount * 1e18);
         require(transferred, "transfer-failed");
 
-        (bool ok, ) = msg.sender.call{value: ethOut}("");
+        (bool ok,) = msg.sender.call{ value: ethOut }("");
         require(ok, "payout-failed");
 
         emit TokensSold(msg.sender, tokenAmount, ethOut);
     }
 
-    function _buy(address buyer, uint256 payment, uint256 minTokensOut) internal returns (uint256 tokensOut) {
+    function _buy(address buyer, uint256 payment, uint256 minTokensOut)
+        internal
+        returns (uint256 tokensOut)
+    {
         require(payment > 0, "value=0");
 
         tokensOut = quoteBuy(payment);
@@ -71,7 +78,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         token.mint(buyer, tokensOut);
 
         if (refund > 0) {
-            (bool ok, ) = buyer.call{value: refund}("");
+            (bool ok,) = buyer.call{ value: refund }("");
             require(ok, "refund-failed");
         }
 
@@ -118,7 +125,11 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         return (token.totalSupply() - marketBalance) / 1e18;
     }
 
-    function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {
+    function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy)
+        public
+        view
+        returns (uint256)
+    {
         if (tokensToBuy == 0) return 0;
 
         uint256 linearCost = tokensToBuy * basePriceWei;
@@ -129,13 +140,17 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         return linearCost + curveCost;
     }
 
-    function proceedsForTokens(uint256 currentSupplyTokens, uint256 tokensToSell) public view returns (uint256) {
+    function proceedsForTokens(uint256 currentSupplyTokens, uint256 tokensToSell)
+        public
+        view
+        returns (uint256)
+    {
         if (tokensToSell == 0 || tokensToSell > currentSupplyTokens) return 0;
         uint256 startingSupply = currentSupplyTokens - tokensToSell;
         return costForTokens(startingSupply, tokensToSell);
     }
 
     receive() external payable {
-        _buy(msg.sender, msg.value, 0);
+        buy(0);
     }
 }
