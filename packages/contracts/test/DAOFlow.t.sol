@@ -52,8 +52,15 @@ contract DAOFlowTest is Test {
     function testFullGovernanceFlow() public {
         vm.deal(alice, 10 ether);
 
+        bytes32 buySecret = keccak256("full-governance-buy-secret");
+        bytes32 buyCommitHash = keccak256(abi.encodePacked(alice, uint256(1), buySecret));
+
         vm.prank(alice);
-        uint256 bought = market.buy{value: 1 ether}(1);
+        market.commitBuy{value: 1 ether}(buyCommitHash);
+
+        vm.roll(block.number + 1);
+        vm.prank(alice);
+        uint256 bought = market.revealBuy(1, buySecret);
         assertGt(bought, 0);
 
         token.delegate(address(this));
@@ -92,5 +99,49 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testCommitRevealLifecycleForBuyAndSell() public {
+        vm.deal(alice, 10 ether);
+
+        bytes32 buySecret = keccak256("buy-lifecycle-secret");
+        bytes32 buyCommitHash = keccak256(abi.encodePacked(alice, uint256(1), buySecret));
+
+        vm.prank(alice);
+        market.commitBuy{value: 1 ether}(buyCommitHash);
+
+        vm.roll(block.number + 1);
+        vm.prank(alice);
+        uint256 bought = market.revealBuy(1, buySecret);
+        assertGt(bought, 1);
+
+        uint256 sellAmount = bought / 2;
+        uint256 minEthOut = 0;
+
+        vm.prank(alice);
+        token.approve(address(market), type(uint256).max);
+
+        bytes32 sellSecret = keccak256("sell-lifecycle-secret");
+        bytes32 sellCommitHash = keccak256(abi.encodePacked(alice, sellAmount, minEthOut, sellSecret));
+
+        vm.prank(alice);
+        market.commitSell(sellCommitHash, sellAmount);
+
+        vm.roll(block.number + 1);
+        vm.prank(alice);
+        uint256 ethOut = market.revealSell(sellAmount, minEthOut, sellSecret);
+
+        assertGt(ethOut, 0);
+    }
+
+    function testSyncReconcilesDonatedTokens() public {
+        uint256 supplyBefore = market.circulatingSupplyTokens();
+
+        bool transferred = token.transfer(address(market), 100 * token.TOKEN_UNIT());
+        assertTrue(transferred);
+        assertEq(market.circulatingSupplyTokens(), supplyBefore);
+
+        market.sync();
+        assertEq(market.circulatingSupplyTokens(), supplyBefore - 100);
     }
 }
