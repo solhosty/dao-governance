@@ -52,8 +52,16 @@ contract DAOFlowTest is Test {
     function testFullGovernanceFlow() public {
         vm.deal(alice, 10 ether);
 
+        bytes32 buySalt = keccak256("dao-flow-buy");
+        bytes32 buyHash = keccak256(abi.encode("BUY", alice, uint256(1), buySalt, 1 ether));
+
         vm.prank(alice);
-        uint256 bought = market.buy{value: 1 ether}(1);
+        market.commitBuy{value: 1 ether}(buyHash);
+
+        vm.roll(block.number + 1);
+
+        vm.prank(alice);
+        uint256 bought = market.revealBuy(1, buySalt);
         assertGt(bought, 0);
 
         token.delegate(address(this));
