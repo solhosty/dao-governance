@@ -8,12 +8,27 @@ import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
 contract DAOTokenMarket is Ownable, ReentrancyGuard {
     DAOGovernanceToken public immutable token;
 
+    struct CommitInfo {
+        bytes32 commitHash;
+        uint256 blockNumber;
+        bool used;
+    }
+
+    uint256 public constant COMMIT_MIN_DELAY = 1;
+    uint256 public constant COMMIT_MAX_AGE = 256;
+
     uint256 public basePriceWei;
     uint256 public slopeWei;
+
+    uint256 private _trackedTokenBalance;
+
+    mapping(address => CommitInfo) public commitments;
 
     event TokensPurchased(address indexed buyer, uint256 ethSpent, uint256 tokensMinted);
     event TokensSold(address indexed seller, uint256 tokensSold, uint256 ethReceived);
     event CurveParamsUpdated(uint256 basePriceWei, uint256 slopeWei);
+    event Committed(address indexed committer, bytes32 commitHash);
+    event TokensSkimmed(address indexed to, uint256 amount);
 
     constructor(
         DAOGovernanceToken token_,
@@ -36,20 +51,30 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         emit CurveParamsUpdated(basePriceWei_, slopeWei_);
     }
 
-    function buy(uint256 minTokensOut) external payable nonReentrant returns (uint256 tokensOut) {
+    function commit(bytes32 hash) external {
+        commitments[msg.sender] = CommitInfo({commitHash: hash, blockNumber: block.number, used: false});
+        emit Committed(msg.sender, hash);
+    }
+
+    function buy(uint256 minTokensOut, bytes32 salt) external payable nonReentrant returns (uint256 tokensOut) {
+        _consumeCommitment(keccak256(abi.encodePacked("buy", msg.value, minTokensOut, salt)));
         return _buy(msg.sender, msg.value, minTokensOut);
     }
 
-    function sell(uint256 tokenAmount, uint256 minEthOut) external nonReentrant returns (uint256 ethOut) {
+    function sell(uint256 tokenAmount, uint256 minEthOut, bytes32 salt) external nonReentrant returns (uint256 ethOut) {
         require(tokenAmount > 0, "amount=0");
+
+        _consumeCommitment(keccak256(abi.encodePacked("sell", tokenAmount, minEthOut, salt)));
 
         ethOut = quoteSell(tokenAmount);
         require(ethOut >= minEthOut, "slippage");
         require(ethOut > 0, "insufficient-liquidity");
         require(address(this).balance >= ethOut, "insufficient-liquidity");
 
-        bool transferred = token.transferFrom(msg.sender, address(this), tokenAmount * 1e18);
+        uint256 transferAmount = tokenAmount * 1e18;
+        bool transferred = token.transferFrom(msg.sender, address(this), transferAmount);
         require(transferred, "transfer-failed");
+        _trackedTokenBalance += transferAmount;
 
         (bool ok, ) = msg.sender.call{value: ethOut}("");
         require(ok, "payout-failed");
@@ -76,6 +101,19 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         }
 
         emit TokensPurchased(buyer, spent, tokensOut);
+    }
+
+    function skim(address to) external onlyOwner {
+        require(to != address(0), "to=0");
+
+        uint256 actualBalance = token.balanceOf(address(this));
+        uint256 excessBalance = actualBalance - _trackedTokenBalance;
+        require(excessBalance > 0, "nothing-to-skim");
+
+        bool transferred = token.transfer(to, excessBalance);
+        require(transferred, "skim-failed");
+
+        emit TokensSkimmed(to, excessBalance);
     }
 
     function quoteBuy(uint256 ethAmount) public view returns (uint256) {
@@ -114,8 +152,21 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     function circulatingSupplyTokens() public view returns (uint256) {
-        uint256 marketBalance = token.balanceOf(address(this));
-        return (token.totalSupply() - marketBalance) / 1e18;
+        return (token.totalSupply() - _trackedTokenBalance) / 1e18;
+    }
+
+    function _consumeCommitment(bytes32 expectedHash) internal {
+        CommitInfo storage info = commitments[msg.sender];
+
+        require(info.commitHash != bytes32(0), "commit-missing");
+        require(!info.used, "commit-used");
+
+        uint256 age = block.number - info.blockNumber;
+        require(age >= COMMIT_MIN_DELAY, "commit-too-soon");
+        require(age <= COMMIT_MAX_AGE, "commit-expired");
+        require(info.commitHash == expectedHash, "commit-mismatch");
+
+        info.used = true;
     }
 
     function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {
@@ -135,7 +186,4 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         return costForTokens(startingSupply, tokensToSell);
     }
 
-    receive() external payable {
-        _buy(msg.sender, msg.value, 0);
-    }
 }
