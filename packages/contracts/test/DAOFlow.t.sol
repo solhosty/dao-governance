@@ -93,4 +93,18 @@ contract DAOFlowTest is Test {
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
     }
+
+    function testBuySellSupplyNeutrality() public {
+        vm.deal(alice, 10 ether);
+
+        uint256 supplyBefore = token.totalSupply();
+
+        vm.startPrank(alice);
+        uint256 bought = market.buy{value: 1 ether}(1);
+        token.approve(address(market), bought * 1e18);
+        market.sell(bought, 0);
+        vm.stopPrank();
+
+        assertEq(token.totalSupply(), supplyBefore);
+    }
 }
