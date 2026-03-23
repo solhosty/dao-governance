@@ -51,6 +51,8 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         bool transferred = token.transferFrom(msg.sender, address(this), tokenAmount * 1e18);
         require(transferred, "transfer-failed");
 
+        token.burn(tokenAmount);
+
         (bool ok, ) = msg.sender.call{value: ethOut}("");
         require(ok, "payout-failed");
 
