@@ -12,11 +12,12 @@ import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFactoryTest is Test {
     DAOFactory internal factory;
+    TokenDeployer internal tokenDeployer;
 
     function setUp() public {
-        TokenDeployer tokenDeployer = new TokenDeployer();
+        tokenDeployer = new TokenDeployer();
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        GovernorDeployer governorDeployer = new GovernorDeployer();
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
@@ -26,6 +27,10 @@ contract DAOFactoryTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.setFactory(address(factory));
+        governorDeployer.setFactory(address(factory));
+        marketDeployer.setFactory(address(factory));
     }
 
     function testCreateDAO() public {
@@ -73,5 +78,10 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testTokenDeployerDirectCallReverts() public {
+        vm.expectRevert("only-factory");
+        tokenDeployer.deploy(keccak256("SALT"), "Token", "TOK", address(this), 1_000);
     }
 }

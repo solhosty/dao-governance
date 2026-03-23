@@ -18,7 +18,7 @@ contract Deploy is Script {
 
         TokenDeployer tokenDeployer = new TokenDeployer();
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        GovernorDeployer governorDeployer = new GovernorDeployer();
         MarketDeployer marketDeployer = new MarketDeployer();
 
         require(address(tokenDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "token-deployer-code-too-large");
@@ -37,6 +37,10 @@ contract Deploy is Script {
             address(marketDeployer)
         );
         require(address(factory).code.length <= MAX_RUNTIME_CODE_SIZE, "factory-code-too-large");
+
+        tokenDeployer.setFactory(address(factory));
+        governorDeployer.setFactory(address(factory));
+        marketDeployer.setFactory(address(factory));
 
         vm.stopBroadcast();
     }
