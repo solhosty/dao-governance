@@ -4,13 +4,28 @@ pragma solidity ^0.8.24;
 import {DAOGovernanceToken} from "../DAOGovernanceToken.sol";
 
 contract TokenDeployer {
+    error Unauthorized();
+
+    address public factory;
+
+    modifier onlyFactory() {
+        if (msg.sender != factory) revert Unauthorized();
+        _;
+    }
+
+    function setFactory(address factory_) external {
+        require(factory_ != address(0), "factory=0");
+        require(factory == address(0), "factory-set");
+        factory = factory_;
+    }
+
     function deploy(
         bytes32 salt,
         string memory name,
         string memory symbol,
         address initialOwner,
         uint256 initialSupply
-    ) external returns (address token) {
+    ) external onlyFactory returns (address token) {
         token = address(new DAOGovernanceToken{salt: salt}(name, symbol, initialOwner, initialSupply));
     }
 
