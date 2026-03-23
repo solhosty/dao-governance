@@ -4,16 +4,6 @@ pragma solidity ^0.8.24;
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract GovernorPredictor {
-    function deployTimelock(
-        bytes32 timelockSalt,
-        address timelockAdmin
-    ) external returns (address timelock) {
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](0);
-
-        timelock = address(new TimelockController{salt: timelockSalt}(1 hours, proposers, executors, timelockAdmin));
-    }
-
     function predictTimelock(
         address deployer,
         bytes32 timelockSalt,

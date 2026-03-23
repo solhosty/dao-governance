@@ -22,7 +22,7 @@ contract DAOFlowTest is Test {
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        GovernorDeployer governorDeployer = new GovernorDeployer();
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
@@ -32,6 +32,10 @@ contract DAOFlowTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.setFactory(address(factory));
+        governorDeployer.setFactory(address(factory));
+        marketDeployer.setFactory(address(factory));
 
         uint256 id = factory.createDAO(
             "Flow DAO",

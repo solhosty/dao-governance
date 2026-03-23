@@ -16,7 +16,7 @@ contract DAOFactoryTest is Test {
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
+        GovernorDeployer governorDeployer = new GovernorDeployer();
         MarketDeployer marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
@@ -26,6 +26,10 @@ contract DAOFactoryTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.setFactory(address(factory));
+        governorDeployer.setFactory(address(factory));
+        marketDeployer.setFactory(address(factory));
     }
 
     function testCreateDAO() public {

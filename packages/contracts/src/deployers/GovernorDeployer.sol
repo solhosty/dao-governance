@@ -4,14 +4,21 @@ pragma solidity ^0.8.24;
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {DAO} from "../DAO.sol";
-import {GovernorPredictor} from "./GovernorPredictor.sol";
 
 contract GovernorDeployer {
-    GovernorPredictor public immutable governorPredictor;
+    error Unauthorized();
 
-    constructor(address governorPredictor_) {
-        require(governorPredictor_ != address(0), "governor-predictor=0");
-        governorPredictor = GovernorPredictor(governorPredictor_);
+    address public factory;
+
+    modifier onlyFactory() {
+        if (msg.sender != factory) revert Unauthorized();
+        _;
+    }
+
+    function setFactory(address factory_) external {
+        require(factory_ != address(0), "factory=0");
+        require(factory == address(0), "factory-set");
+        factory = factory_;
     }
 
     function deploy(
@@ -23,8 +30,11 @@ contract GovernorDeployer {
         uint32 votingPeriodSeconds,
         uint256 quorumNumerator,
         address timelockAdmin
-    ) external returns (address dao, address timelock) {
-        timelock = governorPredictor.deployTimelock(timelockSalt, timelockAdmin);
+    ) external onlyFactory returns (address dao, address timelock) {
+        address[] memory proposers = new address[](0);
+        address[] memory executors = new address[](0);
+
+        timelock = address(new TimelockController{salt: timelockSalt}(1 hours, proposers, executors, timelockAdmin));
 
         DAO deployedDAO = new DAO{salt: daoSalt}(
             governorName,
