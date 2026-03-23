@@ -196,7 +196,7 @@ contract DAOFactory is Ownable {
         );
 
         predicted.timelock = governorPredictor.predictTimelock(
-            address(governorPredictor),
+            address(governorDeployer),
             timelockSalt,
             address(this)
         );

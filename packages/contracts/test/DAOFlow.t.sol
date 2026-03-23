@@ -16,14 +16,16 @@ contract DAOFlowTest is Test {
     DAO internal dao;
     DAOGovernanceToken internal token;
     DAOTokenMarket internal market;
+    GovernorDeployer internal governorDeployer;
+    MarketDeployer internal marketDeployer;
 
     address internal alice = address(0xA11CE);
 
     function setUp() public {
         TokenDeployer tokenDeployer = new TokenDeployer();
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        governorDeployer = new GovernorDeployer();
+        marketDeployer = new MarketDeployer();
 
         factory = new DAOFactory(
             address(this),
@@ -32,6 +34,10 @@ contract DAOFlowTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.setFactory(address(factory));
+        governorDeployer.setFactory(address(factory));
+        marketDeployer.setFactory(address(factory));
 
         uint256 id = factory.createDAO(
             "Flow DAO",
@@ -92,5 +98,39 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testGovernorDeployerDirectCallReverts() public {
+        uint48 votingDelay = factory.DEFAULT_VOTING_DELAY();
+        uint32 votingPeriod = factory.DEFAULT_VOTING_PERIOD();
+
+        vm.expectRevert("only-factory");
+        governorDeployer.deploy(
+            keccak256("timelock"),
+            keccak256("dao"),
+            "Unauthorized Governor",
+            token,
+            votingDelay,
+            votingPeriod,
+            4,
+            address(this)
+        );
+    }
+
+    function testMarketDeployerDirectCallReverts() public {
+        vm.expectRevert("only-factory");
+        marketDeployer.deploy(keccak256("market"), token, address(this), 0.0001 ether, 0.00001 ether);
+    }
+
+    function testPlainEthTransferToMarketReverts() public {
+        vm.deal(alice, 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert("use-buy-function");
+        payable(address(market)).transfer(0.1 ether);
+
+        vm.prank(alice);
+        uint256 tokensOut = market.buy{value: 1 ether}(1);
+        assertGt(tokensOut, 0);
     }
 }

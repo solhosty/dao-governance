@@ -136,6 +136,6 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     receive() external payable {
-        _buy(msg.sender, msg.value, 0);
+        revert("use-buy-function");
     }
 }
