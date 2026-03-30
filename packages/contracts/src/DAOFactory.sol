@@ -120,8 +120,8 @@ contract DAOFactory is Ownable {
             IVotes(tokenAddress),
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            quorumNumerator,
             DEFAULT_PROPOSAL_THRESHOLD,
+            quorumNumerator,
             address(this)
         );
 
@@ -210,8 +210,8 @@ contract DAOFactory is Ownable {
             predicted.timelock,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            quorumNumerator,
-            DEFAULT_PROPOSAL_THRESHOLD
+            DEFAULT_PROPOSAL_THRESHOLD,
+            quorumNumerator
         );
 
         predicted.market = marketDeployer.predict(

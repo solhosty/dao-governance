@@ -21,8 +21,8 @@ contract GovernorDeployer {
         IVotes token,
         uint48 votingDelaySeconds,
         uint32 votingPeriodSeconds,
-        uint256 quorumNumerator,
         uint256 proposalThreshold,
+        uint256 quorumNumerator,
         address timelockAdmin
     ) external returns (address dao, address timelock) {
         timelock = governorPredictor.deployTimelock(timelockSalt, timelockAdmin);
@@ -33,8 +33,8 @@ contract GovernorDeployer {
             TimelockController(payable(timelock)),
             votingDelaySeconds,
             votingPeriodSeconds,
-            quorumNumerator,
-            proposalThreshold
+            proposalThreshold,
+            quorumNumerator
         );
 
         dao = address(deployedDAO);
@@ -47,8 +47,8 @@ contract GovernorDeployer {
         address timelock,
         uint48 votingDelaySeconds,
         uint32 votingPeriodSeconds,
-        uint256 quorumNumerator,
-        uint256 proposalThreshold
+        uint256 proposalThreshold,
+        uint256 quorumNumerator
     ) external view returns (address dao) {
         bytes32 daoInitCodeHash = keccak256(
             abi.encodePacked(
@@ -59,8 +59,8 @@ contract GovernorDeployer {
                     TimelockController(payable(timelock)),
                     votingDelaySeconds,
                     votingPeriodSeconds,
-                    quorumNumerator,
-                    proposalThreshold
+                    proposalThreshold,
+                    quorumNumerator
                 )
             )
         );
