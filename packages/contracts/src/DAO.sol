@@ -31,16 +31,13 @@ contract DAO is
         GovernorSettings(
             votingDelaySeconds_,
             votingPeriodSeconds_,
-            _validateProposalThreshold(proposalThreshold_)
+            proposalThreshold_
         )
         GovernorVotes(token_)
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
-    {}
-
-    function _validateProposalThreshold(uint256 proposalThreshold_) private pure returns (uint256) {
+    {
         require(proposalThreshold_ > 0, "proposal threshold must be > 0");
-        return proposalThreshold_;
     }
 
     function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
