@@ -29,7 +29,7 @@ contract DAOFactory is Ownable {
     uint48 public constant DEFAULT_VOTING_DELAY = 1 hours;
     uint32 public constant DEFAULT_VOTING_PERIOD = 1 days;
     uint256 public constant DEFAULT_TIMELOCK_DELAY = 1 hours;
-    uint256 public constant DEFAULT_PROPOSAL_THRESHOLD = TOKEN_UNIT;
+    uint256 public constant DEFAULT_PROPOSAL_THRESHOLD = 1;
 
     TokenDeployer public immutable tokenDeployer;
     GovernorDeployer public immutable governorDeployer;
@@ -79,12 +79,14 @@ contract DAOFactory is Ownable {
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
-        uint256 quorumNumerator
+        uint256 quorumNumerator,
+        uint256 proposalThreshold
     ) external returns (uint256 daoId) {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
         require(quorumNumerator > 0 && quorumNumerator <= 100, "bad-quorum");
+        require(proposalThreshold >= DEFAULT_PROPOSAL_THRESHOLD, "bad-threshold");
 
         daoId = daos.length;
         bytes32 deploymentSalt = _deploymentSalt(
@@ -120,7 +122,7 @@ contract DAOFactory is Ownable {
             IVotes(tokenAddress),
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            DEFAULT_PROPOSAL_THRESHOLD,
+            proposalThreshold,
             quorumNumerator,
             address(this)
         );
@@ -173,8 +175,10 @@ contract DAOFactory is Ownable {
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
-        uint256 quorumNumerator
+        uint256 quorumNumerator,
+        uint256 proposalThreshold
     ) external view returns (PredictedAddresses memory predicted) {
+        require(proposalThreshold >= DEFAULT_PROPOSAL_THRESHOLD, "bad-threshold");
         uint256 daoId = daos.length;
         bytes32 deploymentSalt = _deploymentSalt(
             creator,
@@ -210,7 +214,7 @@ contract DAOFactory is Ownable {
             predicted.timelock,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            DEFAULT_PROPOSAL_THRESHOLD,
+            proposalThreshold,
             quorumNumerator
         );
 

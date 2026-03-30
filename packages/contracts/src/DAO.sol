@@ -37,7 +37,7 @@ contract DAO is
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
     {
-        require(proposalThreshold_ > 0, "proposalThreshold must be > 0");
+        require(proposalThreshold_ > 0, "proposal-threshold-zero");
     }
 
     function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {

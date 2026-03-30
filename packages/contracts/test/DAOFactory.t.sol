@@ -37,7 +37,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            1
         );
 
         uint256 id = factory.createDAO(
@@ -47,7 +48,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            1
         );
 
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
