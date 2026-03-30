@@ -24,14 +24,24 @@ contract DAO is
         TimelockController timelock_,
         uint48 votingDelaySeconds_,
         uint32 votingPeriodSeconds_,
-        uint256 quorumNumerator_
+        uint256 quorumNumerator_,
+        uint256 proposalThreshold_
     )
         Governor(name_)
-        GovernorSettings(votingDelaySeconds_, votingPeriodSeconds_, 0)
+        GovernorSettings(
+            votingDelaySeconds_,
+            votingPeriodSeconds_,
+            _validateProposalThreshold(proposalThreshold_)
+        )
         GovernorVotes(token_)
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
     {}
+
+    function _validateProposalThreshold(uint256 proposalThreshold_) private pure returns (uint256) {
+        require(proposalThreshold_ > 0, "proposal threshold must be > 0");
+        return proposalThreshold_;
+    }
 
     function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.votingDelay();

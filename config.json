@@ -1,4 +1,5 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "agent": {
     "build": {
       "options": {},
@@ -27,6 +28,5 @@
     "webfetch": "allow",
     "doom_loop": "allow",
     "external_directory": "allow"
-  },
-  "$schema": "https://opencode.ai/config.json"
+  }
 }

@@ -59,6 +59,7 @@ contract DAOFlowTest is Test {
         token.delegate(address(this));
         vm.prank(alice);
         token.delegate(alice);
+        vm.warp(block.timestamp + 1);
 
         uint256 newBase = 0.0002 ether;
         uint256 newSlope = 0.00002 ether;

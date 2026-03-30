@@ -29,6 +29,7 @@ contract DAOFactory is Ownable {
     uint48 public constant DEFAULT_VOTING_DELAY = 1 hours;
     uint32 public constant DEFAULT_VOTING_PERIOD = 1 days;
     uint256 public constant DEFAULT_TIMELOCK_DELAY = 1 hours;
+    uint256 public constant DEFAULT_PROPOSAL_THRESHOLD = TOKEN_UNIT;
 
     TokenDeployer public immutable tokenDeployer;
     GovernorDeployer public immutable governorDeployer;
@@ -120,6 +121,7 @@ contract DAOFactory is Ownable {
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
             quorumNumerator,
+            DEFAULT_PROPOSAL_THRESHOLD,
             address(this)
         );
 
@@ -208,7 +210,8 @@ contract DAOFactory is Ownable {
             predicted.timelock,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            quorumNumerator
+            quorumNumerator,
+            DEFAULT_PROPOSAL_THRESHOLD
         );
 
         predicted.market = marketDeployer.predict(
