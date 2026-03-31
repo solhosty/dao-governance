@@ -20,13 +20,15 @@ contract DAOFlowTest is Test {
     address internal alice = address(0xA11CE);
 
     function setUp() public {
-        TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        factory = new DAOFactory(address(this));
 
-        factory = new DAOFactory(
-            address(this),
+        GovernorPredictor governorPredictor = new GovernorPredictor();
+        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor), address(factory));
+        TokenDeployer tokenDeployer = new TokenDeployer(address(factory));
+        MarketDeployer marketDeployer = new MarketDeployer(address(factory));
+
+        governorPredictor.setGovernorDeployer(address(governorDeployer));
+        factory.initialize(
             address(tokenDeployer),
             address(governorDeployer),
             address(governorPredictor),

@@ -30,10 +30,11 @@ contract DAOFactory is Ownable {
     uint32 public constant DEFAULT_VOTING_PERIOD = 1 days;
     uint256 public constant DEFAULT_TIMELOCK_DELAY = 1 hours;
 
-    TokenDeployer public immutable tokenDeployer;
-    GovernorDeployer public immutable governorDeployer;
-    GovernorPredictor public immutable governorPredictor;
-    MarketDeployer public immutable marketDeployer;
+    TokenDeployer public tokenDeployer;
+    GovernorDeployer public governorDeployer;
+    GovernorPredictor public governorPredictor;
+    MarketDeployer public marketDeployer;
+    bool public initialized;
 
     DAOInfo[] private daos;
 
@@ -53,13 +54,15 @@ contract DAOFactory is Ownable {
         address timelock;
     }
 
-    constructor(
-        address owner_,
+    constructor(address owner_) Ownable(owner_) {}
+
+    function initialize(
         address tokenDeployer_,
         address governorDeployer_,
         address governorPredictor_,
         address marketDeployer_
-    ) Ownable(owner_) {
+    ) external onlyOwner {
+        require(!initialized, "already-initialized");
         require(tokenDeployer_ != address(0), "token-deployer=0");
         require(governorDeployer_ != address(0), "governor-deployer=0");
         require(governorPredictor_ != address(0), "governor-predictor=0");
@@ -69,6 +72,7 @@ contract DAOFactory is Ownable {
         governorDeployer = GovernorDeployer(governorDeployer_);
         governorPredictor = GovernorPredictor(governorPredictor_);
         marketDeployer = MarketDeployer(marketDeployer_);
+        initialized = true;
     }
 
     function createDAO(
@@ -80,6 +84,7 @@ contract DAOFactory is Ownable {
         uint256 slopeWei,
         uint256 quorumNumerator
     ) external returns (uint256 daoId) {
+        require(initialized, "not-initialized");
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");

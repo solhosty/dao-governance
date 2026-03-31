@@ -4,10 +4,23 @@ pragma solidity ^0.8.24;
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract GovernorPredictor {
+    address public governorDeployer;
+
+    modifier onlyGovernorDeployer() {
+        require(msg.sender == governorDeployer, "not-governor-deployer");
+        _;
+    }
+
+    function setGovernorDeployer(address governorDeployer_) external {
+        require(governorDeployer == address(0), "governor-deployer-set");
+        require(governorDeployer_ != address(0), "governor-deployer=0");
+        governorDeployer = governorDeployer_;
+    }
+
     function deployTimelock(
         bytes32 timelockSalt,
         address timelockAdmin
-    ) external returns (address timelock) {
+    ) external onlyGovernorDeployer returns (address timelock) {
         address[] memory proposers = new address[](0);
         address[] memory executors = new address[](0);
 

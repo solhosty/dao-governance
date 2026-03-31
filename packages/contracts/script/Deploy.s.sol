@@ -13,13 +13,25 @@ contract Deploy is Script {
 
     function run() external returns (DAOFactory factory) {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPk);
 
         vm.startBroadcast(deployerPk);
 
-        TokenDeployer tokenDeployer = new TokenDeployer();
+        factory = new DAOFactory(deployer);
+        require(address(factory).code.length <= MAX_RUNTIME_CODE_SIZE, "factory-code-too-large");
+
         GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor), address(factory));
+        TokenDeployer tokenDeployer = new TokenDeployer(address(factory));
+        MarketDeployer marketDeployer = new MarketDeployer(address(factory));
+
+        governorPredictor.setGovernorDeployer(address(governorDeployer));
+        factory.initialize(
+            address(tokenDeployer),
+            address(governorDeployer),
+            address(governorPredictor),
+            address(marketDeployer)
+        );
 
         require(address(tokenDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "token-deployer-code-too-large");
         require(address(governorDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "governor-deployer-code-too-large");
@@ -28,15 +40,6 @@ contract Deploy is Script {
             "governor-predictor-code-too-large"
         );
         require(address(marketDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "market-deployer-code-too-large");
-
-        factory = new DAOFactory(
-            vm.addr(deployerPk),
-            address(tokenDeployer),
-            address(governorDeployer),
-            address(governorPredictor),
-            address(marketDeployer)
-        );
-        require(address(factory).code.length <= MAX_RUNTIME_CODE_SIZE, "factory-code-too-large");
 
         vm.stopBroadcast();
     }
