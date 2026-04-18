@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {DAO} from "../DAO.sol";
 import {GovernorPredictor} from "./GovernorPredictor.sol";
 
-contract GovernorDeployer {
+contract GovernorDeployer is Ownable {
     GovernorPredictor public immutable governorPredictor;
 
-    constructor(address governorPredictor_) {
+    constructor(address owner_, address governorPredictor_) Ownable(owner_) {
         require(governorPredictor_ != address(0), "governor-predictor=0");
         governorPredictor = GovernorPredictor(governorPredictor_);
     }
@@ -23,7 +24,7 @@ contract GovernorDeployer {
         uint32 votingPeriodSeconds,
         uint256 quorumNumerator,
         address timelockAdmin
-    ) external returns (address dao, address timelock) {
+    ) external onlyOwner returns (address dao, address timelock) {
         timelock = governorPredictor.deployTimelock(timelockSalt, timelockAdmin);
 
         DAO deployedDAO = new DAO{salt: daoSalt}(

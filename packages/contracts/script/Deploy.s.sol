@@ -13,13 +13,14 @@ contract Deploy is Script {
 
     function run() external returns (DAOFactory factory) {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPk);
 
         vm.startBroadcast(deployerPk);
 
-        TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        TokenDeployer tokenDeployer = new TokenDeployer(deployer);
+        GovernorPredictor governorPredictor = new GovernorPredictor(deployer);
+        GovernorDeployer governorDeployer = new GovernorDeployer(deployer, address(governorPredictor));
+        MarketDeployer marketDeployer = new MarketDeployer(deployer);
 
         require(address(tokenDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "token-deployer-code-too-large");
         require(address(governorDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "governor-deployer-code-too-large");
@@ -30,13 +31,18 @@ contract Deploy is Script {
         require(address(marketDeployer).code.length <= MAX_RUNTIME_CODE_SIZE, "market-deployer-code-too-large");
 
         factory = new DAOFactory(
-            vm.addr(deployerPk),
+            deployer,
             address(tokenDeployer),
             address(governorDeployer),
             address(governorPredictor),
             address(marketDeployer)
         );
         require(address(factory).code.length <= MAX_RUNTIME_CODE_SIZE, "factory-code-too-large");
+
+        tokenDeployer.transferOwnership(address(factory));
+        governorDeployer.transferOwnership(address(factory));
+        marketDeployer.transferOwnership(address(factory));
+        governorPredictor.transferOwnership(address(governorDeployer));
 
         vm.stopBroadcast();
     }

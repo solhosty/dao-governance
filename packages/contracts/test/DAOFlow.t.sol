@@ -20,10 +20,10 @@ contract DAOFlowTest is Test {
     address internal alice = address(0xA11CE);
 
     function setUp() public {
-        TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        TokenDeployer tokenDeployer = new TokenDeployer(address(this));
+        GovernorPredictor governorPredictor = new GovernorPredictor(address(this));
+        GovernorDeployer governorDeployer = new GovernorDeployer(address(this), address(governorPredictor));
+        MarketDeployer marketDeployer = new MarketDeployer(address(this));
 
         factory = new DAOFactory(
             address(this),
@@ -32,6 +32,11 @@ contract DAOFlowTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.transferOwnership(address(factory));
+        governorDeployer.transferOwnership(address(factory));
+        marketDeployer.transferOwnership(address(factory));
+        governorPredictor.transferOwnership(address(governorDeployer));
 
         uint256 id = factory.createDAO(
             "Flow DAO",
@@ -92,5 +97,19 @@ contract DAOFlowTest is Test {
 
         assertEq(market.basePriceWei(), newBase);
         assertEq(market.slopeWei(), newSlope);
+    }
+
+    function testSellBuyRoundTripDoesNotInflateSupply() public {
+        uint256 supplyBefore = token.totalSupply();
+
+        vm.deal(alice, 10 ether);
+
+        vm.startPrank(alice);
+        uint256 bought = market.buy{value: 1 ether}(1);
+        token.approve(address(market), bought * token.TOKEN_UNIT());
+        market.sell(bought, 0);
+        vm.stopPrank();
+
+        assertEq(token.totalSupply(), supplyBefore);
     }
 }

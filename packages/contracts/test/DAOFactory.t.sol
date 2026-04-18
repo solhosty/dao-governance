@@ -12,12 +12,13 @@ import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
 contract DAOFactoryTest is Test {
     DAOFactory internal factory;
+    TokenDeployer internal tokenDeployer;
 
     function setUp() public {
-        TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
+        tokenDeployer = new TokenDeployer(address(this));
+        GovernorPredictor governorPredictor = new GovernorPredictor(address(this));
+        GovernorDeployer governorDeployer = new GovernorDeployer(address(this), address(governorPredictor));
+        MarketDeployer marketDeployer = new MarketDeployer(address(this));
 
         factory = new DAOFactory(
             address(this),
@@ -26,6 +27,11 @@ contract DAOFactoryTest is Test {
             address(governorPredictor),
             address(marketDeployer)
         );
+
+        tokenDeployer.transferOwnership(address(factory));
+        governorDeployer.transferOwnership(address(factory));
+        marketDeployer.transferOwnership(address(factory));
+        governorPredictor.transferOwnership(address(governorDeployer));
     }
 
     function testCreateDAO() public {
@@ -73,5 +79,17 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testTokenDeployerRejectsNonOwner() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        tokenDeployer.deploy(
+            keccak256(abi.encode("salt")),
+            "Squat Token",
+            "SQT",
+            address(this),
+            1
+        );
     }
 }

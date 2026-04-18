@@ -128,8 +128,8 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
       return getAddress(resolvedInfo.dao);
     }
 
-    return parsedDaoAddress;
-  }, [parsedDaoAddress, resolvedInfo?.dao]);
+    return undefined;
+  }, [resolvedInfo?.dao]);
 
   useEffect(() => {
     let cancelled = false;
@@ -424,8 +424,12 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
               ) : null}
               <button
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
-                disabled={isPending}
+                disabled={isPending || !resolvedInfo}
                 onClick={() => {
+                  if (!resolvedInfo || !daoAddress) {
+                    return;
+                  }
+
                   writeContract({
                     abi: daoAbi,
                     address: daoAddress,

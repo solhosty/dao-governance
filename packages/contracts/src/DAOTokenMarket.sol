@@ -51,6 +51,8 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         bool transferred = token.transferFrom(msg.sender, address(this), tokenAmount * 1e18);
         require(transferred, "transfer-failed");
 
+        token.burnFrom(address(this), tokenAmount);
+
         (bool ok, ) = msg.sender.call{value: ethOut}("");
         require(ok, "payout-failed");
 
@@ -114,8 +116,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     function circulatingSupplyTokens() public view returns (uint256) {
-        uint256 marketBalance = token.balanceOf(address(this));
-        return (token.totalSupply() - marketBalance) / 1e18;
+        return token.totalSupply() / 1e18;
     }
 
     function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {
@@ -135,7 +136,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         return costForTokens(startingSupply, tokensToSell);
     }
 
-    receive() external payable {
+    receive() external payable nonReentrant {
         _buy(msg.sender, msg.value, 0);
     }
 }

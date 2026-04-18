@@ -11,6 +11,7 @@ import {
 } from "wagmi";
 
 import { daoTokenMarketAbi } from "@/lib/abi/daoTokenMarket";
+import { DEFAULT_CHAIN_ID } from "@/lib/contracts";
 
 type BuyTokenFormProps = {
   marketAddress: `0x${string}`;
@@ -127,6 +128,7 @@ export function BuyTokenForm({ marketAddress, tokenSymbol = "TOKEN" }: BuyTokenF
       await writeContractAsync({
         abi: daoTokenMarketAbi,
         address: marketAddress,
+        chainId: DEFAULT_CHAIN_ID,
         functionName: "buy",
         args: [buyMinTokensOut],
         value: buyAmountWei,
@@ -161,6 +163,7 @@ export function BuyTokenForm({ marketAddress, tokenSymbol = "TOKEN" }: BuyTokenF
       await writeContractAsync({
         abi: daoTokenMarketAbi,
         address: marketAddress,
+        chainId: DEFAULT_CHAIN_ID,
         functionName: "sell",
         args: [sellAmount, sellMinEthOut],
         gas,

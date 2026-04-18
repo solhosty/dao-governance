@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {DAOGovernanceToken} from "../DAOGovernanceToken.sol";
 
-contract TokenDeployer {
+contract TokenDeployer is Ownable {
+    constructor(address owner_) Ownable(owner_) {}
+
     function deploy(
         bytes32 salt,
         string memory name,
         string memory symbol,
         address initialOwner,
         uint256 initialSupply
-    ) external returns (address token) {
+    ) external onlyOwner returns (address token) {
         token = address(new DAOGovernanceToken{salt: salt}(name, symbol, initialOwner, initialSupply));
     }
 

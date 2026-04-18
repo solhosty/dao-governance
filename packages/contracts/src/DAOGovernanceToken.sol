@@ -25,6 +25,10 @@ contract DAOGovernanceToken is ERC20, ERC20Permit, ERC20Votes, Ownable {
         _mint(to, amount * TOKEN_UNIT);
     }
 
+    function burnFrom(address from, uint256 amount) external onlyOwner {
+        _burn(from, amount * TOKEN_UNIT);
+    }
+
     function clock() public view override returns (uint48) {
         return uint48(block.timestamp);
     }
