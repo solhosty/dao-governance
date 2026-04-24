@@ -22,6 +22,7 @@
 
 - [Features](#features)
 - [Architecture](#architecture)
+- [Contract Architecture](#contract-architecture)
 - [Tech Stack](#tech-stack)
 - [Workspace Layout](#-workspace-layout)
 - [Prerequisites](#-prerequisites)
@@ -29,6 +30,7 @@
 - [Contracts](#-contracts)
 - [Frontend](#-frontend)
 - [End-to-End Flow](#-end-to-end-flow)
+- [Resources](#resources)
 - [Contributing](#contributing)
 - [Security](#security)
 - [License](#license)
@@ -56,6 +58,66 @@ graph TD
     E --> H[DAOTokenMarket]
     F --> I[TimelockController]
 ```
+
+## Contract Architecture
+
+```mermaid
+graph TD
+    subgraph Factory Layer
+        F[DAOFactory]
+        TD[TokenDeployer]
+        GD[GovernorDeployer]
+        GP[GovernorPredictor]
+        MD[MarketDeployer]
+    end
+
+    F --> TD
+    F --> GD
+    F --> GP
+    F --> MD
+
+    TD --> T[DAOGovernanceToken]
+    GD --> D[DAO]
+    GD --> TL[TimelockController]
+    GP -.predict/deploy.-> TL
+    MD --> M[DAOTokenMarket]
+
+    D --> G[Governor]
+    D --> GS[GovernorSettings]
+    D --> GCS[GovernorCountingSimple]
+    D --> GV[GovernorVotes]
+    D --> GQ[GovernorVotesQuorumFraction]
+    D --> GTC[GovernorTimelockControl]
+
+    T --> E20[ERC20]
+    T --> EP[ERC20Permit]
+    T --> EV[ERC20Votes]
+    T --> O1[Ownable]
+
+    M --> O2[Ownable]
+    M --> R[ReentrancyGuard]
+
+    D -- PROPOSER_ROLE --> TL
+    D -- CANCELLER_ROLE --> TL
+    A[Anyone] -- EXECUTOR_ROLE --> TL
+```
+
+- **Core Contracts**
+  - `DAOFactory`: Entry point that orchestrates CREATE2-based deployment and registry writes.
+  - `DAO`: OpenZeppelin Governor composed from settings, simple counting, quorum fraction, and timelock control.
+  - `DAOGovernanceToken`: ERC20 + Permit + Votes token with timestamp clock semantics and owner-restricted minting.
+  - `DAOTokenMarket`: ETH bonding curve market with reentrancy protection; market ownership is transferred to timelock.
+- **Deployer Contracts**
+  - `TokenDeployer`, `GovernorDeployer`, `GovernorPredictor`, and `MarketDeployer` are CREATE2 helpers that expose address prediction for pre-computation.
+- **Governance Flow**
+  - Create proposal -> voting delay (`1h`) -> voting period (`1d`) -> queue in `TimelockController` -> timelock delay (`1h`) -> execute.
+  - `EXECUTOR_ROLE` is granted to `address(0)`, so any caller can execute queued proposals after the delay.
+- **Key Roles / Actors**
+  - DAO Creator: Calls `createDAO(...)` and receives initial governance token supply.
+  - Token Holders: Delegate voting power, trade on the token market, and vote on proposals.
+  - Governor contract: Holds `PROPOSER_ROLE` and `CANCELLER_ROLE` on the timelock.
+  - Anyone: Holds execution permission through open `EXECUTOR_ROLE`.
+  - `DAOTokenMarket`: Token owner that controls minting as directed by timelock-governed updates.
 
 ## Tech Stack
 
@@ -157,6 +219,15 @@ pnpm --filter web dev
 5. Delegate votes with the governance token contract.
 6. Create a proposal in `/dao/[dao]`.
 7. Vote, queue after the voting period, and execute after the timelock delay.
+
+## Resources
+
+- OpenZeppelin Governor docs: https://docs.openzeppelin.com/contracts/5.x/api/governance#Governor
+- OpenZeppelin TimelockController docs: https://docs.openzeppelin.com/contracts/5.x/api/governance#TimelockController
+- EIP-5805 (Voting with delegation): https://eips.ethereum.org/EIPS/eip-5805
+- Foundry Book: https://book.getfoundry.sh/
+- Cyfrin Updraft governance course: https://updraft.cyfrin.io/
+- Compound Governor overview: https://docs.compound.finance/v2/governance/
 
 ## Contributing
 
