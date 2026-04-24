@@ -22,6 +22,7 @@
 
 - [Features](#features)
 - [Architecture](#architecture)
+- [Contract Architecture](#contract-architecture)
 - [Tech Stack](#tech-stack)
 - [Workspace Layout](#-workspace-layout)
 - [Prerequisites](#-prerequisites)
@@ -29,6 +30,7 @@
 - [Contracts](#-contracts)
 - [Frontend](#-frontend)
 - [End-to-End Flow](#-end-to-end-flow)
+- [Resources](#resources)
 - [Contributing](#contributing)
 - [Security](#security)
 - [License](#license)
@@ -56,6 +58,75 @@ graph TD
     E --> H[DAOTokenMarket]
     F --> I[TimelockController]
 ```
+
+## Contract Architecture
+
+```mermaid
+graph TD
+    DAOFactory -->|CREATE2 deploy + predict()| TokenDeployer
+    DAOFactory -->|CREATE2 deploy + predict()| GovernorDeployer
+    DAOFactory -->|CREATE2 deploy + predict()| GovernorPredictor
+    DAOFactory -->|CREATE2 deploy + predict()| MarketDeployer
+
+    TokenDeployer -->|CREATE2| DAOGovernanceToken
+    GovernorDeployer -->|CREATE2| DAO
+    GovernorDeployer -->|uses| GovernorPredictor
+    GovernorPredictor -->|CREATE2| TimelockController
+    MarketDeployer -->|CREATE2| DAOTokenMarket
+
+    DAO -->|inherits| Governor
+    DAO -->|inherits| GovernorSettings
+    DAO -->|inherits| GovernorCountingSimple
+    DAO -->|inherits| GovernorVotes
+    DAO -->|inherits| GovernorVotesQuorumFraction
+    DAO -->|inherits| GovernorTimelockControl
+
+    DAOGovernanceToken -->|inherits| ERC20
+    DAOGovernanceToken -->|inherits| ERC20Permit
+    DAOGovernanceToken -->|inherits| ERC20Votes
+    DAOGovernanceToken -->|inherits| Ownable
+
+    DAOTokenMarket -->|inherits| Ownable
+    DAOTokenMarket -->|inherits| ReentrancyGuard
+
+    DAO -->|PROPOSER_ROLE| TimelockController
+    DAO -->|CANCELLER_ROLE| TimelockController
+    TimelockController -->|EXECUTOR_ROLE| Anyone["address(0)"]
+    TimelockController -->|owns| DAOTokenMarket
+    DAOTokenMarket -->|owns| DAOGovernanceToken
+```
+
+### Core Contracts
+
+- `DAOFactory`: orchestrates deterministic DAO deployments and stores DAO registry metadata.
+- `DAO`: governance core built on OpenZeppelin Governor extensions with timestamp-based voting.
+- `DAOGovernanceToken`: ERC20 + Permit + Votes token with minting controlled by the owner.
+- `DAOTokenMarket`: bonding-curve ETH market that mints/burns governance token supply.
+
+### Deployer Contracts
+
+- `TokenDeployer`: CREATE2 deployer for `DAOGovernanceToken` with `predict(...)` support.
+- `GovernorDeployer`: CREATE2 deployer for `DAO`, coordinated with timelock deployment.
+- `GovernorPredictor`: deploys and predicts deterministic `TimelockController` addresses.
+- `MarketDeployer`: CREATE2 deployer for `DAOTokenMarket` with `predict(...)` support.
+
+All deployer contracts use CREATE2 and expose deterministic address prediction helpers.
+
+### Governance Flow
+
+1. Create a proposal in `DAO`.
+2. Wait for voting delay (`1 hours`).
+3. Vote during voting period (`1 days`).
+4. Queue successful proposal in `TimelockController`.
+5. Wait timelock minimum delay (`1 hours`).
+6. Execute queued proposal (permissionless because `EXECUTOR_ROLE = address(0)`).
+
+### Key Roles / Actors
+
+- **DAO Creator**: calls `createDAO(...)` and receives initial token supply when configured.
+- **Token Holders**: delegate and vote on governance proposals via ERC20Votes checkpoints.
+- **TimelockController**: owns `DAOTokenMarket`, and the market owns `DAOGovernanceToken`.
+- **DAO Contract**: granted `PROPOSER_ROLE` and `CANCELLER_ROLE` on `TimelockController`.
 
 ## Tech Stack
 
@@ -157,6 +228,17 @@ pnpm --filter web dev
 5. Delegate votes with the governance token contract.
 6. Create a proposal in `/dao/[dao]`.
 7. Vote, queue after the voting period, and execute after the timelock delay.
+
+## Resources
+
+- [OpenZeppelin Governor docs](https://docs.openzeppelin.com/contracts/5.x/governance)
+- [OpenZeppelin Votes and ERC20Votes docs](https://docs.openzeppelin.com/contracts/5.x/api/governance#Votes)
+- [OpenZeppelin TimelockController docs](https://docs.openzeppelin.com/contracts/5.x/api/governance#TimelockController)
+- [EIP-5805: Voting with timestamps](https://eips.ethereum.org/EIPS/eip-5805)
+- [EIP-1014: CREATE2](https://eips.ethereum.org/EIPS/eip-1014)
+- [Foundry Book](https://book.getfoundry.sh/)
+- [Next.js docs](https://nextjs.org/docs)
+- [wagmi docs](https://wagmi.sh/)
 
 ## Contributing
 
