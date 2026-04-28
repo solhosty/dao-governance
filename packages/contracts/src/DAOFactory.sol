@@ -53,22 +53,11 @@ contract DAOFactory is Ownable {
         address timelock;
     }
 
-    constructor(
-        address owner_,
-        address tokenDeployer_,
-        address governorDeployer_,
-        address governorPredictor_,
-        address marketDeployer_
-    ) Ownable(owner_) {
-        require(tokenDeployer_ != address(0), "token-deployer=0");
-        require(governorDeployer_ != address(0), "governor-deployer=0");
-        require(governorPredictor_ != address(0), "governor-predictor=0");
-        require(marketDeployer_ != address(0), "market-deployer=0");
-
-        tokenDeployer = TokenDeployer(tokenDeployer_);
-        governorDeployer = GovernorDeployer(governorDeployer_);
-        governorPredictor = GovernorPredictor(governorPredictor_);
-        marketDeployer = MarketDeployer(marketDeployer_);
+    constructor(address owner_) Ownable(owner_) {
+        governorPredictor = new GovernorPredictor();
+        tokenDeployer = new TokenDeployer(address(this));
+        governorDeployer = new GovernorDeployer(address(this), address(governorPredictor));
+        marketDeployer = new MarketDeployer(address(this));
     }
 
     function createDAO(
