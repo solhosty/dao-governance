@@ -78,14 +78,17 @@ contract DAOFactory is Ownable {
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
-        uint256 quorumNumerator
+        uint256 quorumNumerator,
+        uint256 expectedDaoId
     ) external returns (uint256 daoId) {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
         require(quorumNumerator > 0 && quorumNumerator <= 100, "bad-quorum");
 
-        daoId = daos.length;
+        require(expectedDaoId == daos.length, "dao-id-mismatch");
+
+        daoId = expectedDaoId;
         bytes32 deploymentSalt = _deploymentSalt(
             msg.sender,
             daoName,
@@ -173,13 +176,62 @@ contract DAOFactory is Ownable {
         uint256 slopeWei,
         uint256 quorumNumerator
     ) external view returns (PredictedAddresses memory predicted) {
-        uint256 daoId = daos.length;
+        return
+            _predictAddresses(
+                creator,
+                daoName,
+                tokenName,
+                tokenSymbol,
+                initialSupply,
+                basePriceWei,
+                slopeWei,
+                quorumNumerator,
+                daos.length
+            );
+    }
+
+    function predictAddresses(
+        address creator,
+        string memory daoName,
+        string memory tokenName,
+        string memory tokenSymbol,
+        uint256 initialSupply,
+        uint256 basePriceWei,
+        uint256 slopeWei,
+        uint256 quorumNumerator,
+        uint256 expectedDaoId
+    ) external view returns (PredictedAddresses memory predicted) {
+        return
+            _predictAddresses(
+                creator,
+                daoName,
+                tokenName,
+                tokenSymbol,
+                initialSupply,
+                basePriceWei,
+                slopeWei,
+                quorumNumerator,
+                expectedDaoId
+            );
+    }
+
+    function _predictAddresses(
+        address creator,
+        string memory daoName,
+        string memory tokenName,
+        string memory tokenSymbol,
+        uint256 initialSupply,
+        uint256 basePriceWei,
+        uint256 slopeWei,
+        uint256 quorumNumerator,
+        uint256 expectedDaoId
+    ) private view returns (PredictedAddresses memory predicted) {
         bytes32 deploymentSalt = _deploymentSalt(
             creator,
             daoName,
             tokenName,
             tokenSymbol,
-            daoId
+            expectedDaoId
         );
 
         bytes32 tokenSalt = _typedSalt(deploymentSalt, "TOKEN");

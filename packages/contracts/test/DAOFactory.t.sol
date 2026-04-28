@@ -37,7 +37,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            0
         );
 
         uint256 id = factory.createDAO(
@@ -47,7 +48,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            0
         );
 
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
@@ -73,5 +75,19 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testCreateDAORevertsOnDaoIdMismatch() public {
+        vm.expectRevert("dao-id-mismatch");
+        factory.createDAO(
+            "Alpha DAO",
+            "Alpha Governance Token",
+            "ALPHA",
+            1_000,
+            0.0001 ether,
+            0.00001 ether,
+            4,
+            1
+        );
     }
 }
