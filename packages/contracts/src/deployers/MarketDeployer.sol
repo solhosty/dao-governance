@@ -5,13 +5,25 @@ import {DAOGovernanceToken} from "../DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../DAOTokenMarket.sol";
 
 contract MarketDeployer {
+    address public immutable factory;
+
+    constructor(address factory_) {
+        require(factory_ != address(0), "factory=0");
+        factory = factory_;
+    }
+
+    modifier onlyFactory() {
+        require(msg.sender == factory, "only-factory");
+        _;
+    }
+
     function deploy(
         bytes32 salt,
         DAOGovernanceToken token,
         address initialOwner,
         uint256 basePriceWei,
         uint256 slopeWei
-    ) external returns (address market) {
+    ) external onlyFactory returns (address market) {
         market = address(new DAOTokenMarket{salt: salt}(token, initialOwner, basePriceWei, slopeWei));
     }
 

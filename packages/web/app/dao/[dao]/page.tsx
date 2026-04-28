@@ -47,6 +47,21 @@ function getProposalFeedErrorMessage(error: unknown): string {
   return "Proposal feed is temporarily unavailable. You can still enter a proposal ID manually and vote.";
 }
 
+function sanitizeProposalDescription(description: string): string {
+  const normalized = description
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[\t\n]+/g, " ")
+    .trim();
+
+  return normalized
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export default function DaoDetailPage({ params }: DAOPageProps) {
   const [proposalId, setProposalId] = useState("");
   const [proposalFeed, setProposalFeed] = useState<
@@ -189,7 +204,16 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
           return;
         }
 
+        const normalizedDaoAddress = getAddress(daoAddress);
+
         const feed = logs
+          .filter((log) => {
+            try {
+              return getAddress(log.address) === normalizedDaoAddress;
+            } catch {
+              return false;
+            }
+          })
           .map((log) => {
             const args = log.args;
 
@@ -207,7 +231,7 @@ export default function DaoDetailPage({ params }: DAOPageProps) {
             return {
               proposalId: args.proposalId,
               proposer: args.proposer,
-              description: args.description,
+              description: sanitizeProposalDescription(args.description),
               voteStart: args.voteStart,
               voteEnd: args.voteEnd,
               blockNumber: log.blockNumber,

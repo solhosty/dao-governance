@@ -7,11 +7,19 @@ import {DAO} from "../DAO.sol";
 import {GovernorPredictor} from "./GovernorPredictor.sol";
 
 contract GovernorDeployer {
+    address public immutable factory;
     GovernorPredictor public immutable governorPredictor;
 
-    constructor(address governorPredictor_) {
+    constructor(address factory_, address governorPredictor_) {
+        require(factory_ != address(0), "factory=0");
         require(governorPredictor_ != address(0), "governor-predictor=0");
+        factory = factory_;
         governorPredictor = GovernorPredictor(governorPredictor_);
+    }
+
+    modifier onlyFactory() {
+        require(msg.sender == factory, "only-factory");
+        _;
     }
 
     function deploy(
@@ -23,7 +31,7 @@ contract GovernorDeployer {
         uint32 votingPeriodSeconds,
         uint256 quorumNumerator,
         address timelockAdmin
-    ) external returns (address dao, address timelock) {
+    ) external onlyFactory returns (address dao, address timelock) {
         timelock = governorPredictor.deployTimelock(timelockSalt, timelockAdmin);
 
         DAO deployedDAO = new DAO{salt: daoSalt}(

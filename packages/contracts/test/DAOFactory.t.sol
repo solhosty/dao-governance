@@ -7,25 +7,14 @@ import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
 import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
 import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
-import {GovernorPredictor} from "../src/deployers/GovernorPredictor.sol";
 import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
+import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 contract DAOFactoryTest is Test {
     DAOFactory internal factory;
 
     function setUp() public {
-        TokenDeployer tokenDeployer = new TokenDeployer();
-        GovernorPredictor governorPredictor = new GovernorPredictor();
-        GovernorDeployer governorDeployer = new GovernorDeployer(address(governorPredictor));
-        MarketDeployer marketDeployer = new MarketDeployer();
-
-        factory = new DAOFactory(
-            address(this),
-            address(tokenDeployer),
-            address(governorDeployer),
-            address(governorPredictor),
-            address(marketDeployer)
-        );
+        factory = new DAOFactory(address(this));
     }
 
     function testCreateDAO() public {
@@ -73,5 +62,24 @@ contract DAOFactoryTest is Test {
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+    }
+
+    function testDeployerFunctionsRevertForNonFactoryCaller() public {
+        bytes32 salt = keccak256("salt");
+
+        TokenDeployer tokenDeployer = factory.tokenDeployer();
+        vm.prank(address(0xBEEF));
+        vm.expectRevert("only-factory");
+        tokenDeployer.deploy(salt, "Token", "TKN", address(this), 1_000);
+
+        MarketDeployer marketDeployer = factory.marketDeployer();
+        vm.prank(address(0xBEEF));
+        vm.expectRevert("only-factory");
+        marketDeployer.deploy(salt, DAOGovernanceToken(address(0)), address(this), 1, 1);
+
+        GovernorDeployer governorDeployer = factory.governorDeployer();
+        vm.prank(address(0xBEEF));
+        vm.expectRevert("only-factory");
+        governorDeployer.deploy(salt, salt, "Gov", IVotes(address(0)), 1, 1, 1, address(this));
     }
 }
