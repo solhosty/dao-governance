@@ -40,7 +40,8 @@ contract DAOFlowTest is Test {
             20_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            0
         );
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
 
