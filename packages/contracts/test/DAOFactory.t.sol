@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {DAO} from "../src/DAO.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
@@ -29,6 +30,8 @@ contract DAOFactoryTest is Test {
     }
 
     function testCreateDAO() public {
+        uint256 proposalThreshold = 10 * 1e18;
+
         DAOFactory.PredictedAddresses memory predicted = factory.predictAddresses(
             address(this),
             "Alpha DAO",
@@ -37,7 +40,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            proposalThreshold
         );
 
         uint256 id = factory.createDAO(
@@ -47,7 +51,8 @@ contract DAOFactoryTest is Test {
             1_000,
             0.0001 ether,
             0.00001 ether,
-            4
+            4,
+            proposalThreshold
         );
 
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
@@ -67,11 +72,13 @@ contract DAOFactoryTest is Test {
 
         DAOGovernanceToken token = DAOGovernanceToken(info.token);
         DAOTokenMarket market = DAOTokenMarket(payable(info.market));
+        DAO dao = DAO(payable(info.dao));
 
         assertEq(token.owner(), address(market));
         assertEq(token.name(), "Alpha Governance Token");
         assertEq(token.symbol(), "ALPHA");
         assertEq(token.balanceOf(address(this)), 1_000 * token.TOKEN_UNIT());
         assertEq(market.basePriceWei(), 0.0001 ether);
+        assertEq(dao.proposalThreshold(), proposalThreshold);
     }
 }
