@@ -10,6 +10,10 @@ import {GovernorTimelockControl} from "@openzeppelin/contracts/governance/extens
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
+interface IVoteEligibilityToken is IVotes {
+    function voteEligibleAt(address account) external view returns (uint256);
+}
+
 contract DAO is
     Governor,
     GovernorSettings,
@@ -24,10 +28,11 @@ contract DAO is
         TimelockController timelock_,
         uint48 votingDelaySeconds_,
         uint32 votingPeriodSeconds_,
-        uint256 quorumNumerator_
+        uint256 quorumNumerator_,
+        uint256 proposalThreshold_
     )
         Governor(name_)
-        GovernorSettings(votingDelaySeconds_, votingPeriodSeconds_, 0)
+        GovernorSettings(votingDelaySeconds_, votingPeriodSeconds_, proposalThreshold_)
         GovernorVotes(token_)
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
@@ -57,6 +62,16 @@ contract DAO is
         returns (uint256)
     {
         return super.proposalThreshold();
+    }
+
+    function propose(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) public override(Governor) returns (uint256) {
+        require(_isVoteEligible(msg.sender, clock() - 1), "vote-cooldown");
+        return super.propose(targets, values, calldatas, description);
     }
 
     function state(
@@ -110,5 +125,20 @@ contract DAO is
 
     function CLOCK_MODE() public view override(Governor, GovernorVotes) returns (string memory) {
         return super.CLOCK_MODE();
+    }
+
+    function _castVote(
+        uint256 proposalId,
+        address account,
+        uint8 support,
+        string memory reason,
+        bytes memory params
+    ) internal override(Governor) returns (uint256) {
+        require(_isVoteEligible(account, proposalSnapshot(proposalId)), "vote-cooldown");
+        return super._castVote(proposalId, account, support, reason, params);
+    }
+
+    function _isVoteEligible(address account, uint256 timepoint) internal view returns (bool) {
+        return IVoteEligibilityToken(address(token())).voteEligibleAt(account) <= timepoint;
     }
 }

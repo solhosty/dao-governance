@@ -71,6 +71,8 @@ contract DAOFactory is Ownable {
         marketDeployer = MarketDeployer(marketDeployer_);
     }
 
+    /// @notice Creates a DAO with explicit governance quorum and proposal threshold controls.
+    /// @dev proposalThreshold is denominated in token base units (1e18 = 1 token).
     function createDAO(
         string memory daoName,
         string memory tokenName,
@@ -78,12 +80,14 @@ contract DAOFactory is Ownable {
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
-        uint256 quorumNumerator
+        uint256 quorumNumerator,
+        uint256 proposalThreshold
     ) external returns (uint256 daoId) {
         require(bytes(daoName).length > 0, "dao-name-empty");
         require(bytes(tokenName).length > 0, "token-name-empty");
         require(bytes(tokenSymbol).length > 0, "symbol-empty");
         require(quorumNumerator > 0 && quorumNumerator <= 100, "bad-quorum");
+        require(proposalThreshold > 0, "bad-threshold");
 
         daoId = daos.length;
         bytes32 deploymentSalt = _deploymentSalt(
@@ -120,6 +124,7 @@ contract DAOFactory is Ownable {
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
             quorumNumerator,
+            proposalThreshold,
             address(this)
         );
 
@@ -163,6 +168,8 @@ contract DAOFactory is Ownable {
         emit DAOCreated(daoId, msg.sender, tokenAddress, daoAddress, marketAddress, timelockAddress);
     }
 
+    /// @notice Predicts deterministic deployment addresses for a DAO configuration.
+    /// @dev proposalThreshold must match createDAO input or predicted governor address will differ.
     function predictAddresses(
         address creator,
         string memory daoName,
@@ -171,7 +178,8 @@ contract DAOFactory is Ownable {
         uint256 initialSupply,
         uint256 basePriceWei,
         uint256 slopeWei,
-        uint256 quorumNumerator
+        uint256 quorumNumerator,
+        uint256 proposalThreshold
     ) external view returns (PredictedAddresses memory predicted) {
         uint256 daoId = daos.length;
         bytes32 deploymentSalt = _deploymentSalt(
@@ -208,7 +216,8 @@ contract DAOFactory is Ownable {
             predicted.timelock,
             DEFAULT_VOTING_DELAY,
             DEFAULT_VOTING_PERIOD,
-            quorumNumerator
+            quorumNumerator,
+            proposalThreshold
         );
 
         predicted.market = marketDeployer.predict(
