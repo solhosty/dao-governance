@@ -6,6 +6,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {DAOGovernanceToken} from "./DAOGovernanceToken.sol";
 
 contract DAOTokenMarket is Ownable, ReentrancyGuard {
+    uint256 private constant MAX_PARAM_INCREASE_MULTIPLIER = 2;
+
     DAOGovernanceToken public immutable token;
 
     uint256 public basePriceWei;
@@ -31,6 +33,19 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     function setCurveParams(uint256 basePriceWei_, uint256 slopeWei_) external onlyOwner {
         require(basePriceWei_ > 0, "base=0");
+
+        require(_withinIncreaseLimit(basePriceWei, basePriceWei_), "base-change-too-large");
+        require(_withinIncreaseLimit(slopeWei, slopeWei_), "slope-change-too-large");
+
+        uint256 supplyTokens = circulatingSupplyTokens();
+        uint256 redemptionObligation = _proceedsForTokensWithParams(
+            supplyTokens,
+            supplyTokens,
+            basePriceWei_,
+            slopeWei_
+        );
+        require(address(this).balance >= redemptionObligation, "insufficient-reserves");
+
         basePriceWei = basePriceWei_;
         slopeWei = slopeWei_;
         emit CurveParamsUpdated(basePriceWei_, slopeWei_);
@@ -133,6 +148,45 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         if (tokensToSell == 0 || tokensToSell > currentSupplyTokens) return 0;
         uint256 startingSupply = currentSupplyTokens - tokensToSell;
         return costForTokens(startingSupply, tokensToSell);
+    }
+
+    function _withinIncreaseLimit(uint256 currentValue, uint256 nextValue) internal pure returns (bool) {
+        if (nextValue <= currentValue) {
+            return true;
+        }
+
+        if (currentValue == 0) {
+            return false;
+        }
+
+        return nextValue <= currentValue * MAX_PARAM_INCREASE_MULTIPLIER;
+    }
+
+    function _costForTokensWithParams(
+        uint256 currentSupplyTokens,
+        uint256 tokensToBuy,
+        uint256 basePriceWei_,
+        uint256 slopeWei_
+    ) internal pure returns (uint256) {
+        if (tokensToBuy == 0) return 0;
+
+        uint256 linearCost = tokensToBuy * basePriceWei_;
+        uint256 supplyComponent = tokensToBuy * currentSupplyTokens;
+        uint256 progressiveComponent = (tokensToBuy * (tokensToBuy - 1)) / 2;
+        uint256 curveCost = slopeWei_ * (supplyComponent + progressiveComponent);
+
+        return linearCost + curveCost;
+    }
+
+    function _proceedsForTokensWithParams(
+        uint256 currentSupplyTokens,
+        uint256 tokensToSell,
+        uint256 basePriceWei_,
+        uint256 slopeWei_
+    ) internal pure returns (uint256) {
+        if (tokensToSell == 0 || tokensToSell > currentSupplyTokens) return 0;
+        uint256 startingSupply = currentSupplyTokens - tokensToSell;
+        return _costForTokensWithParams(startingSupply, tokensToSell, basePriceWei_, slopeWei_);
     }
 
     receive() external payable {
