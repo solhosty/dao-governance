@@ -10,6 +10,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
 
     uint256 public basePriceWei;
     uint256 public slopeWei;
+    uint256 private _circulatingSupplyTokens;
 
     event TokensPurchased(address indexed buyer, uint256 ethSpent, uint256 tokensMinted);
     event TokensSold(address indexed seller, uint256 tokensSold, uint256 ethReceived);
@@ -27,6 +28,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         token = token_;
         basePriceWei = basePriceWei_;
         slopeWei = slopeWei_;
+        _circulatingSupplyTokens = token_.totalSupply() / 1e18;
     }
 
     function setCurveParams(uint256 basePriceWei_, uint256 slopeWei_) external onlyOwner {
@@ -51,6 +53,9 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         bool transferred = token.transferFrom(msg.sender, address(this), tokenAmount * 1e18);
         require(transferred, "transfer-failed");
 
+        token.burn(address(this), tokenAmount);
+        _circulatingSupplyTokens -= tokenAmount;
+
         (bool ok, ) = msg.sender.call{value: ethOut}("");
         require(ok, "payout-failed");
 
@@ -69,6 +74,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
         uint256 refund = payment - spent;
 
         token.mint(buyer, tokensOut);
+        _circulatingSupplyTokens += tokensOut;
 
         if (refund > 0) {
             (bool ok, ) = buyer.call{value: refund}("");
@@ -114,8 +120,7 @@ contract DAOTokenMarket is Ownable, ReentrancyGuard {
     }
 
     function circulatingSupplyTokens() public view returns (uint256) {
-        uint256 marketBalance = token.balanceOf(address(this));
-        return (token.totalSupply() - marketBalance) / 1e18;
+        return _circulatingSupplyTokens;
     }
 
     function costForTokens(uint256 currentSupplyTokens, uint256 tokensToBuy) public view returns (uint256) {

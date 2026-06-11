@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {DAOFactory} from "../src/DAOFactory.sol";
-import {DAO} from "../src/DAO.sol";
 import {DAOGovernanceToken} from "../src/DAOGovernanceToken.sol";
 import {DAOTokenMarket} from "../src/DAOTokenMarket.sol";
 import {TokenDeployer} from "../src/deployers/TokenDeployer.sol";
@@ -11,9 +10,8 @@ import {GovernorDeployer} from "../src/deployers/GovernorDeployer.sol";
 import {GovernorPredictor} from "../src/deployers/GovernorPredictor.sol";
 import {MarketDeployer} from "../src/deployers/MarketDeployer.sol";
 
-contract DAOFlowTest is Test {
+contract SecurityFixesTest is Test {
     DAOFactory internal factory;
-    DAO internal dao;
     DAOGovernanceToken internal token;
     DAOTokenMarket internal market;
 
@@ -34,9 +32,9 @@ contract DAOFlowTest is Test {
         );
 
         uint256 id = factory.createDAO(
-            "Flow DAO",
-            "Flow Governance Token",
-            "FLOW",
+            "Security DAO",
+            "Security Governance Token",
+            "SAFE",
             20_000,
             0.0001 ether,
             0.00001 ether,
@@ -44,77 +42,47 @@ contract DAOFlowTest is Test {
         );
         DAOFactory.DAOInfo memory info = factory.getDAO(id);
 
-        dao = DAO(payable(info.dao));
         token = DAOGovernanceToken(info.token);
         market = DAOTokenMarket(payable(info.market));
     }
 
-    function testFullGovernanceFlow() public {
-        vm.deal(alice, 10 ether);
+    function testDonationDoesNotAffectCirculatingSupply() public {
+        uint256 supplyBefore = market.circulatingSupplyTokens();
+        uint256 quoteBefore = market.quoteBuy(1 ether);
 
-        vm.prank(alice);
-        uint256 bought = market.buy{value: 1 ether}(1);
-        assertGt(bought, 0);
+        bool donated = token.transfer(address(market), 250 * token.TOKEN_UNIT());
+        assertTrue(donated);
 
-        token.delegate(address(this));
-        vm.prank(alice);
-        token.delegate(alice);
+        uint256 supplyAfter = market.circulatingSupplyTokens();
+        uint256 quoteAfter = market.quoteBuy(1 ether);
 
-        uint256 newBase = 0.0002 ether;
-        uint256 newSlope = 0.00002 ether;
-        bytes memory callData = abi.encodeCall(DAOTokenMarket.setCurveParams, (newBase, newSlope));
-
-        address[] memory targets = new address[](1);
-        targets[0] = address(market);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = callData;
-
-        string memory description = "Adjust bonding curve parameters";
-        uint256 proposalId = dao.propose(targets, values, calldatas, description);
-
-        vm.warp(block.timestamp + dao.votingDelay() + 1);
-
-        dao.castVote(proposalId, 1);
-        vm.prank(alice);
-        dao.castVote(proposalId, 1);
-
-        vm.warp(block.timestamp + dao.votingPeriod() + 1);
-
-        bytes32 descriptionHash = keccak256(bytes(description));
-        dao.queue(targets, values, calldatas, descriptionHash);
-
-        vm.warp(block.timestamp + 1 hours + 1);
-        dao.execute(targets, values, calldatas, descriptionHash);
-
-        assertEq(market.basePriceWei(), newBase);
-        assertEq(market.slopeWei(), newSlope);
+        assertEq(supplyAfter, supplyBefore);
+        assertEq(quoteAfter, quoteBefore);
     }
 
-    function testMarketSupplyAccountingWithBuyAndSell() public {
+    function testSellBurnsTokensAndUpdatesTrackedSupply() public {
         vm.deal(alice, 10 ether);
-
-        uint256 supplyBefore = market.circulatingSupplyTokens();
 
         vm.prank(alice);
         uint256 bought = market.buy{value: 1 ether}(1);
         assertGt(bought, 0);
-        assertEq(market.circulatingSupplyTokens(), supplyBefore + bought);
 
         uint256 sellTokens = bought / 2;
         if (sellTokens == 0) {
             sellTokens = 1;
         }
 
+        uint256 supplyBefore = market.circulatingSupplyTokens();
+        uint256 totalSupplyBefore = token.totalSupply();
+
         vm.startPrank(alice);
         token.approve(address(market), sellTokens * token.TOKEN_UNIT());
-        market.sell(sellTokens, 0);
+        uint256 ethOut = market.sell(sellTokens, 0);
         vm.stopPrank();
 
+        assertGt(ethOut, 0);
         assertEq(token.balanceOf(address(market)), 0);
-        assertEq(market.circulatingSupplyTokens(), supplyBefore + bought - sellTokens);
+        assertEq(market.circulatingSupplyTokens(), supplyBefore - sellTokens);
+        assertEq(token.totalSupply(), totalSupplyBefore - (sellTokens * token.TOKEN_UNIT()));
     }
 }
