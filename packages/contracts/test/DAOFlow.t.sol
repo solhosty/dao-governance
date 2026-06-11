@@ -37,7 +37,7 @@ contract DAOFlowTest is Test {
             "Flow DAO",
             "Flow Governance Token",
             "FLOW",
-            20_000,
+            0,
             0.0001 ether,
             0.00001 ether,
             4
@@ -60,8 +60,8 @@ contract DAOFlowTest is Test {
         vm.prank(alice);
         token.delegate(alice);
 
-        uint256 newBase = 0.0002 ether;
-        uint256 newSlope = 0.00002 ether;
+        uint256 newBase = 0.00005 ether;
+        uint256 newSlope = 0.000005 ether;
         bytes memory callData = abi.encodeCall(DAOTokenMarket.setCurveParams, (newBase, newSlope));
 
         address[] memory targets = new address[](1);
